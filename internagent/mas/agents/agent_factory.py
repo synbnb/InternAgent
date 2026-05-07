@@ -22,6 +22,10 @@ from .ranking_agent import RankingAgent
 from .method_development_agent import MethodDevelopmentAgent
 from .refinement_agent import RefinementAgent
 
+from .dr_agent import DRAgent
+
+from .prompt_generator_agent import PromptGeneratorAgent
+from .experience_agent import ExperienceAgent
 logger = logging.getLogger(__name__)
 
 
@@ -43,6 +47,9 @@ class AgentFactory:
         "ranking": RankingAgent,
         "survey": SurveyAgent,
         "scholar": ScholarAgent,
+        "dr": DRAgent,
+        'prompt_evolver':PromptGeneratorAgent,
+        'experience':ExperienceAgent
     }
     
     # Cache of created agent instances
@@ -137,10 +144,14 @@ class AgentFactory:
                 try:
                     # Create a merged config with agent-specific settings
                     merged_config = agent_config.copy()
-                    
+
                     # Add reference to global config sections that might be needed
                     merged_config["_global_config"] = config
-                    
+
+                    # Add global memory configuration for agents that use task memory
+                    if "memory" in config:
+                        merged_config["memory"] = config["memory"]
+
                     agents[agent_type] = cls.create_agent(
                         agent_type=agent_type,
                         config=merged_config,

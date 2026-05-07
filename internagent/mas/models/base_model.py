@@ -132,6 +132,35 @@ class BaseModel(abc.ABC):
         """
         pass
     
+    @abc.abstractmethod
+    async def generate_with_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate response using full message history (for multi-turn tool calls).
+        
+        Args:
+            messages: Full conversation history with roles
+            tools: List of tool definitions
+            temperature: Controls randomness
+            max_tokens: Maximum tokens to generate
+            tool_choice: Controls which tool to call
+            **kwargs: Additional parameters
+            
+        Returns:
+            Full API response dictionary
+            
+        Raises:
+            ModelError: On generation failure
+        """
+        pass
+
     @classmethod
     @abc.abstractmethod
     def from_config(cls, config: Dict[str, Any]) -> 'BaseModel':

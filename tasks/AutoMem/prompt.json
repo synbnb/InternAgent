@@ -1,0 +1,7 @@
+{
+    "system": "You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.",
+    "task_description": "Your task is to propose a memory system for conversational AI agents. You need to focus on improving the  memory storage and retrieval mechanisms. You can refer to advanced retrieval-augmented generation (RAG)  methods, refer to how human memory systems work (e.g., episodic memory, semantic memory, memory  consolidation), explore different embedding models or indexing strategies, etc. Note that the model input is conversational text data with temporal information.",
+    "domain": "Agentic memory systems",
+    "background": ""
+}
+

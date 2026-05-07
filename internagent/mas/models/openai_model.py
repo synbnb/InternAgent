@@ -26,7 +26,7 @@ class OpenAIModel(BaseModel):
                 model_name: str = "gpt-4o", 
                 max_tokens: int = 4096,
                 temperature: float = 0.7,
-                timeout: int = 60):
+                timeout: int = 600):
         """
         Initialize the OpenAI model adapter.
         
@@ -135,6 +135,7 @@ class OpenAIModel(BaseModel):
                 ],
                 temperature=temperature if temperature is not None else self.temperature,
                 response_format={"type": "json_object"},
+                timeout=self.timeout,
                 **kwargs
             )
             
@@ -160,7 +161,7 @@ class OpenAIModel(BaseModel):
             raise ValueError(f"Model did not return valid JSON: {e}")
         except Exception as e:
             logger.error(f"Error generating JSON response from OpenAI: {e}")
-            raise
+            raise RuntimeError(f"Error generating JSON response: {e}")
     
     async def generate_json(self, 
                           prompt: str, 
@@ -199,6 +200,71 @@ class OpenAIModel(BaseModel):
             if default is not None:
                 logger.warning(f"Returning default JSON due to error: {e}")
                 return default
+            raise
+
+    async def generate_with_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate response using full message history.
+        
+        This method supports multi-turn conversations with tool calling by accepting
+        a complete message history rather than a single prompt string.
+        
+        Args:
+            messages: Full conversation history with roles (user/assistant/tool)
+            tools: List of tool definitions in OpenAI function calling format
+            temperature: Controls randomness (0 to 1)
+            max_tokens: Maximum number of tokens to generate
+            tool_choice: Controls which tool to call
+            **kwargs: Additional model-specific parameters
+            
+        Returns:
+            Full OpenAI API response as dictionary with structure:
+                {
+                    "choices": [{
+                        "message": {
+                            "role": "assistant",
+                            "content": str or None,
+                            "tool_calls": [...] or None
+                        },
+                        "finish_reason": "stop" or "tool_calls"
+                    }],
+                    ...
+                }
+        """
+        temperature = temperature if temperature is not None else self.temperature
+        max_tokens = max_tokens if max_tokens is not None else self.max_tokens
+        
+        try:
+            request_params = {
+                "model": self.model_name,
+                "messages": messages,
+                "temperature": temperature,
+            }
+            
+            if max_tokens:
+                request_params["max_tokens"] = max_tokens
+            
+            if tools:
+                request_params["tools"] = tools
+                request_params["tool_choice"] = tool_choice or "auto"
+
+            request_params.update(kwargs)
+            
+            response = await self.client.chat.completions.create(**request_params)
+            
+            # Convert to dictionary format
+            return response.model_dump()
+            
+        except Exception as e:
+            logger.error(f"Error generating response with messages from OpenAI: {e}")
             raise
 
     async def embed(self, text: Union[str, List[str]]) -> Union[List[float], List[List[float]]]:
@@ -243,7 +309,7 @@ class OpenAIModel(BaseModel):
         return cls(
             api_key=config.get("api_key"),
             model_name=config.get("model_name", "gpt-4o"),
-            max_tokens=config.get("max_tokens", 4096),
+            max_tokens=config.get("max_tokens", None),
             temperature=config.get("temperature", 0.7),
-            timeout=config.get("timeout", 60)
+            timeout=config.get("timeout", 200)
         ) 

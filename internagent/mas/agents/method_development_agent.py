@@ -10,6 +10,7 @@ technical specifications that enable other researchers to implement the proposed
 import logging
 from typing import Dict, Any, List, Optional
 import os
+import json
 from .base_agent import BaseAgent, AgentExecutionError
 
 logger = logging.getLogger(__name__)
@@ -173,19 +174,36 @@ class MethodDevelopmentAgent(BaseAgent):
         # Extract information
         goal_description = goal.get("description", "")
         domain = goal.get("domain", "")
-        ref_code_path = goal.get("ref_code_path", "")
-        if os.path.exists(ref_code_path):
+        ref_code_path = goal.get("ref_code_path") or ""
+
+        ref_code = ""
+
+        if ref_code_path and os.path.exists(ref_code_path):
             if os.path.isfile(ref_code_path):
                 logger.info("[FILE] Provide the experimental plan based on the baseline code.")
-                with open(ref_code_path, 'r') as f:
-                    ref_code= f.read()
+                try:
+                    with open(ref_code_path, 'r', encoding='utf-8') as f:
+                        ref_code = f.read()
+                except Exception as e:
+                    logger.error(f"Failed to read file {ref_code_path}: {e}")
+
             elif os.path.isdir(ref_code_path):
-                ref_code = ""
-                logger.info("TODO: [PRJ] Provide the experimental plan based on the baseline code.")  
+                summary_path = os.path.join(ref_code_path, "code_summary.json")
+                if os.path.exists(summary_path):
+                    logger.info(f"[PRJ] Provide the experimental plan based on the code summaries {summary_path}.")
+                    try:
+                        with open(summary_path, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            ref_code = json.dumps(data, indent=2, ensure_ascii=False)
+                    except json.JSONDecodeError:
+                        logger.error(f"Invalid JSON in {summary_path}, ignoring.")
+                    except Exception as e:
+                        logger.error(f"Error reading {summary_path}: {e}")
+                else:
+                    logger.warning(f"Directory provided but 'code_summary.json' not found in: {ref_code_path}")
         else:
-            ref_code = ""
-            logger.error("Default: No reference Code, simple idea-gen")
-            
+            logger.warning(f"Path not found: {ref_code_path}. Default: simple experimental plan without code reference.")
+        
         hypothesis_text = hypothesis.get("text", "")
         hypothesis_rationale = hypothesis.get("rationale", "")
         ori_hypothesis_method = hypothesis.get("method_details", "")
@@ -216,7 +234,7 @@ class MethodDevelopmentAgent(BaseAgent):
 
         # Add reference code path if available
         if ref_code:
-            prompt += f"# Baseline Code \n{ref_code}\n\n"
+            prompt += f"# Baseline Code Summary \n{ref_code}\n\n"
             
         if baseline_summary:
             prompt += f"# Baseline Summary (Here is a summary of the baseline method. Our method will be adapted and improved based on the baseline code in the future)\n{baseline_summary}\n\n"

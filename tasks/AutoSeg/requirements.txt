@@ -1,7 +1,0 @@
-torch
-torchvision
-numpy
-tqdm
-Pillow
-matplotlib
-tensorboard

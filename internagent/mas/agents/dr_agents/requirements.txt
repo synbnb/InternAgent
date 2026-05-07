@@ -1,0 +1,57 @@
+# Essential Python packages for InternResearch project
+# Core dependencies
+python-dotenv==1.1.1
+loguru==0.7.3
+pydantic==2.11.7
+requests==2.32.4
+requests-oauthlib==2.0.0
+httpx==0.28.1
+
+# AI/ML Model APIs
+openai==1.98.0
+anthropic==0.60.0
+
+# Computer Vision & OCR (actually used in tools/our_tools.py)
+paddleocr==3.2.0
+opencv-python==4.11.0.86
+pillow==10.4.0
+
+# Data processing
+pandas==2.3.1
+numpy==2.2.6
+json5  # for JSON parsing utilities
+pyyaml==6.0.1  # for YAML configuration file support
+
+# Web scraping and downloading (used in tools)
+beautifulsoup4==4.13.4
+lxml==6.0.0
+
+# Async and concurrency
+asyncio==3.4.3
+aiohttp==3.12.15
+
+# File format support (used in GAIA dataset processing)
+openpyxl==3.1.5
+
+# Utilities
+python-dateutil==2.9.0.post0
+typing-extensions==4.14.1
+
+
+# camel tools
+docstring-parser==0.17.0
+jsonschema
+colorama
+retry
+sqlalchemy
+mcp
+pydub==0.25.1
+ffmpeg-python==0.2.0
+scenedetect==0.6.6
+playwright==1.54.0
+docx2markdown==0.1.1
+chunkr-ai==0.3.1
+xmltodict==0.14.2
+tiktoken
+astor
+firecrawl

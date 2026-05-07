@@ -1,0 +1,7 @@
+{
+    "system": "You are an ambitious AI PhD student who is looking to publish a paper that will contribute significantly to the field.",
+    "task_description": "Your task is to propose a test time reinforcement learning (RL) framework for adapting large language models (LLMs) to downstream tasks without requiring full model fine-tuning. You should explore methods that enable efficient adaptation using limited computational resources and data. Consider techniques such as policy gradient methods, reward modeling, and exploration strategies that can be integrated with LLMs. Additionally, investigate how to leverage pre-trained knowledge in LLMs to enhance the RL adaptation process. Your proposal should include a detailed description of the RL framework, the adaptation process, and potential evaluation metrics for assessing performance on various downstream tasks.",
+    "domain": "Test time reinforcement learning",
+    "background": ""
+}
+

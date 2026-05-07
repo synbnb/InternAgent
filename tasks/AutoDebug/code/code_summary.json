@@ -1,0 +1,30 @@
+{
+    "summary": "A lightweight debug task using synthetic regression data with a simple MLP model. The experiment generates 1000 samples with 20 features using sklearn's make_regression, trains a 2-layer MLP (64->32 hidden units) with ReLU activation for 100 epochs, and evaluates using MSE, R2, and MAE metrics. Training completes in approximately 5 seconds on GPU.",
+    "key_files": [
+        {
+            "path": "experiment.py",
+            "description": "Main experiment script containing SimpleMLP model definition, data generation, training loop, and evaluation functions. Entry point is main() which runs the baseline experiment and saves results to final_info.json."
+        }
+    ],
+    "model_architecture": {
+        "type": "MLP",
+        "layers": ["Linear(20, 64)", "ReLU", "Linear(64, 32)", "ReLU", "Linear(32, 1)"],
+        "parameters": "~2.5K"
+    },
+    "training_config": {
+        "optimizer": "Adam",
+        "learning_rate": 0.001,
+        "epochs": 100,
+        "batch_size": 32,
+        "loss": "MSELoss"
+    },
+    "data_config": {
+        "n_samples": 1000,
+        "n_features": 20,
+        "train_split": 0.64,
+        "val_split": 0.16,
+        "test_split": 0.20
+    },
+    "entry_point": "python experiment.py",
+    "expected_runtime": "5-10 seconds"
+}

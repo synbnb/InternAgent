@@ -1,0 +1,87 @@
+# DR Agent config: deep background research (full pipeline, coordinator, polish)
+
+model:
+  default_model: "o4-mini"
+  global_planner_model: null
+  global_execution_model: null
+  coordinator_model: null
+  synthesizer_model: null
+  task_agent_model: null
+
+main:
+  max_iter: 10
+  enable_coordinator: true
+
+global_planner:
+  max_iter: 2
+  max_nodes: 10
+  enable_multi_layer: true
+  max_retries: 2
+  tools:
+    enabled_tools:
+      - "arxiv_search"
+      - "openalex_search"
+      - "crossref_search"
+      - "volc_search"
+      - "url_processor"
+
+global_execution:
+  max_workers: 10
+  planner:
+    max_subtasks: 3
+    tools:
+      enabled_tools:
+        - "arxiv_search"
+        - "openalex_search"
+        - "crossref_search"
+        - "volc_search"
+        - "url_processor"
+  execution:
+    max_tool_calls: 5
+    tools:
+      enabled_tools:
+        - "arxiv_search"
+        - "openalex_search"
+        - "crossref_search"
+        - "volc_search"
+        - "url_processor"
+
+coordinator:
+  max_correction_attempts: 3
+  tools:
+    enabled_tools:
+      - "arxiv_search"
+      - "openalex_search"
+      - "crossref_search"
+      - "volc_search"
+      - "url_processor"
+
+synthesizer:
+  output_format: "markdown"
+  include_details: true
+  include_failed_nodes: true
+  max_output_length: 1000000
+  polish: true
+
+tools:
+  enabled_tools:
+    - "arxiv_search"
+    - "openalex_search"
+    - "crossref_search"
+    - "volc_search"
+    - "url_processor"
+
+log:
+  log_level: "INFO"
+  log_dir: "./logs"
+  console_output: true
+  log_filename_format: "{timestamp}_{agent_type}.log"
+  save_execution_trace: true
+  trace_output_dir: "./logs/traces"
+
+path:
+  project_root: "."
+  dataset_dir: "./gaia_dataset"
+  results_dir: "./gaia_results"
+  tmp_dir: "./tmp"
+  cache_dir: "./tmp/cache"

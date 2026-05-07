@@ -17,7 +17,16 @@ are available in the following Google Drive folder:
 https://drive.google.com/drive/folders/1kMGkKY_EL9JDgL0gHR-p_vpvwa3fwx2S?usp=sharing
 ```
 
-Download the contents and place them in a directory accessible to the project.
+Download the contents and place the MD17 dataset under `datasets/md17/` inside the task directory:
+
+```
+tasks/AutoMolecule3D/
+└── datasets/
+    └── md17/
+        └── MD17/
+            ├── raw/
+            └── processed/
+```
 
 ---
 
@@ -29,11 +38,11 @@ Download the contents and place them in a directory accessible to the project.
 CUDA_VISIBLE_DEVICES=0 python experiment.py \
   --conf examples/ViSNet-MD17.yml \
   --dataset-arg aspirin \
-  --dataset-root /path/to/md17_dataset \
+  --dataset-root datasets/md17 \
   --out_dir $1 > $1/train.log 2>&1
 ```
 
-The `--dataset-root` argument should point to the directory containing the downloaded **MD17 dataset**.
+The `--dataset-root` argument points to the `datasets/md17/` directory inside the task folder.
 
 ### Example
 

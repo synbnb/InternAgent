@@ -268,7 +268,17 @@ class RepoViewer():
             except:
                 cur_parallel_inputs = parallel_inputs[group_idx * num_proc:]
             with Pool(processes=8) as pool:
-                all_results += list(tqdm(pool.imap(self.generate_doc_single_static, cur_parallel_inputs), total=len(cur_parallel_inputs), desc = f"Generating Document for Group {group_idx}."))
+                # Use tqdm with file parameter to avoid "I/O operation on closed file" errors
+                try:
+                    import sys
+                    results_iter = tqdm(pool.imap(self.generate_doc_single_static, cur_parallel_inputs),
+                                      total=len(cur_parallel_inputs),
+                                      desc=f"Generating Document for Group {group_idx}.",
+                                      file=sys.stdout)
+                except Exception:
+                    # If tqdm fails, fall back to plain iteration
+                    results_iter = pool.imap(self.generate_doc_single_static, cur_parallel_inputs)
+                all_results += list(results_iter)
         print(f"Finish generating document for project {self.project_settings.project_path}")
 
         repo_structure = self.repo_structure
@@ -545,6 +555,90 @@ def get_repo_structure(model, project_path, output_dir, output_name, ignore_list
         with open(os.path.join(setting_manager.project_settings.output_dir, setting_manager.project_settings.output_name), 'w', encoding='utf-8') as f:
             json.dump(repo_structure, f, ensure_ascii=False, indent=2)
         return repo_structure
+
+
+CLAUDECODE_REPO_ANALYSIS_PROMPT = """Please analyze the codebase in the current directory and provide a comprehensive summary.
+
+Your analysis should include:
+
+1. **Main Functionality**: Provide a complete overview of what the repository is designed to do. Avoid overly detailed explanations; focus on delivering a clear and concise summary of its purpose.
+
+2. **Key Files**: Identify the key files that are critical to understanding or implementing the functionality. Provide brief explanations for why these files are important.
+
+Please structure your response in the following format:
+
+<code_repo_func>
+[Your summary of the main functionality]
+</code_repo_func>
+
+<code_repo_key_files>
+[A list of key files with explanations, one file per line with format: filename - explanation]
+</code_repo_key_files>
+
+Focus on:
+- Methods and Concepts: Describe the main methods and concepts used in the code
+- Model Structure: If applicable, outline the model architecture and design choices
+- Limitations: What are the limitations of the code and how can they be addressed?
+"""
+
+
+def get_repo_structure_claudecode(project_path, output_dir, output_name, proxy_settings=None, model='claude-sonnet-4-5-20250929'):
+    """
+    Use Claude Code to analyze repository structure and generate code summary
+
+    Args:
+        project_path: Path to the project directory to analyze
+        output_dir: Directory to save the output JSON file
+        output_name: Name of the output JSON file
+        proxy_settings: Optional dictionary with HTTP_PROXY and HTTPS_PROXY settings
+        model: Model name to use (default: claude-sonnet-4-5-20250929)
+
+    Returns:
+        Dictionary with 'summary' and 'key_files' keys containing the analysis
+    """
+    try:
+        # Import ClaudeCodeRunner (assuming it's in experiments_utils_claude)
+        from internagent.experiments_utils_claude import ClaudeCodeRunner
+
+        # Initialize Claude Code runner
+        claude_runner = ClaudeCodeRunner(proxy_settings, model=model)
+
+        # Run Claude Code with the analysis prompt
+        print(f"Analyzing repository at {project_path} using Claude Code...")
+        claude_output = claude_runner.run(CLAUDECODE_REPO_ANALYSIS_PROMPT, cwd=project_path)
+
+        # Extract summary and key files from the output
+        summary, key_files = extract_from_repo_summary(claude_output)
+
+        # Create result structure
+        repo_structure = {
+            "summary": summary,
+            "key_files": key_files,
+            "analyzed_with": "claudecode",
+            "model": model
+        }
+
+        # Save to output file
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        if not output_name.endswith(".json"):
+            output_name += ".json"
+
+        output_path = os.path.join(output_dir, output_name)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(repo_structure, f, ensure_ascii=False, indent=2)
+
+        print(f"Repository summary saved to {output_path}")
+        return repo_structure
+
+    except Exception as e:
+        print(f"Error during repository analysis with Claude Code: {e}")
+        # Return a basic structure on error
+        return {
+            "summary": f"Error analyzing repository: {str(e)}",
+            "key_files": "",
+            "error": str(e)
+        }
 
 
 

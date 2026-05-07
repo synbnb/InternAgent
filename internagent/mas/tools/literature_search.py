@@ -1,347 +1,212 @@
 """
 Literature Search Tool for InternAgent
 
-This module provides tools for scientific literature search, citation management, and metadata extraction.
-It integrates with multiple academic search engines and databases.
+Rewritten version - Uses multiple reliable free academic search APIs
+Supported sources: arXiv, Semantic Scholar, CrossRef, CORE
 """
 
 import os
 import asyncio
 import logging
 import re
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Any
+from datetime import datetime
+import urllib.parse
+import requests
 
-import aiohttp
-from bs4 import BeautifulSoup
+try:
+    import aiohttp
+except ImportError:
+    import subprocess
+    subprocess.check_call(["pip", "install", "aiohttp"])
+    import aiohttp
+
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    import subprocess
+    subprocess.check_call(["pip", "install", "beautifulsoup4", "lxml"])
+    from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class PaperMetadata:
-    """Data class for paper metadata."""
+    """Paper metadata"""
     
     title: str
     authors: List[str]
-    abstract: str
+    abstract: str = ""
+    content: str = ""
     year: Optional[int] = None
     doi: Optional[str] = None
     journal: Optional[str] = None
     url: Optional[str] = None
     citations: Optional[int] = None
-    references: Optional[List[str]] = None
-    keywords: Optional[List[str]] = None
-    full_text: Optional[str] = None
+    pdf_url: Optional[str] = None
+    source: str = "unknown"  # Source: arxiv, semantic_scholar, crossref, core
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary."""
-        return {
-            "title": self.title,
-            "authors": self.authors,
-            "abstract": self.abstract,
-            "year": self.year,
-            "doi": self.doi,
-            "journal": self.journal,
-            "url": self.url,
-            "citations": self.citations,
-            "references": self.references,
-            "keywords": self.keywords
-        }
+        """Convert to dictionary"""
+        return asdict(self)
     
     def to_citation(self, format_type: str = "apa") -> str:
-        """
-        Generate a formatted citation.
-        
-        Args:
-            format_type: Citation format ("apa", "mla", "chicago", "harvard", "bibtex")
-            
-        Returns:
-            Formatted citation string
-        """
-        if format_type == "apa":
-            # APA format
-            author_text = ""
-            if self.authors:
-                if len(self.authors) == 1:
-                    author_text = f"{self.authors[0]}."
-                elif len(self.authors) == 2:
-                    author_text = f"{self.authors[0]} & {self.authors[1]}."
-                else:
-                    author_text = f"{self.authors[0]} et al."
-            
-            year_text = f" ({self.year})." if self.year else ""
-            journal_text = f" {self.journal}," if self.journal else ""
-            doi_text = f" doi:{self.doi}" if self.doi else ""
-            
-            return f"{author_text}{year_text} {self.title}.{journal_text}{doi_text}"
-            
-        elif format_type == "bibtex":
-            # BibTeX format
-            first_author = self.authors[0].split(" ")[-1] if self.authors else "Unknown"
+        """Generate citation format"""
+        if format_type == "bibtex":
+            first_author = self.authors[0].split()[-1] if self.authors else "Unknown"
             year = self.year or "Unknown"
             key = f"{first_author}{year}"
-            
             authors = " and ".join(self.authors) if self.authors else "Unknown"
             
             return (
                 f"@article{{{key},\n"
-                f"  author = {{{authors}}},\n"
                 f"  title = {{{self.title}}},\n"
+                f"  author = {{{authors}}},\n"
+                f"  year = {{{year}}},\n"
                 f"  journal = {{{self.journal or 'Unknown'}}},\n"
-                f"  year = {{{self.year or 'Unknown'}}},\n"
-                f"  doi = {{{self.doi or ''}}}\n"
+                f"  doi = {{{self.doi or ''}}},\n"
+                f"  url = {{{self.url or ''}}}\n"
                 f"}}"
             )
-            
-        # Default to a basic citation
-        authors = ", ".join(self.authors) if self.authors else "Unknown"
-        year = f"({self.year})" if self.year else ""
-        journal = f"{self.journal}" if self.journal else ""
         
-        return f"{authors} {year}. {self.title}. {journal}"
+        # APA format (default)
+        authors_str = ""
+        if self.authors:
+            if len(self.authors) == 1:
+                authors_str = self.authors[0]
+            elif len(self.authors) == 2:
+                authors_str = f"{self.authors[0]} & {self.authors[1]}"
+            else:
+                authors_str = f"{self.authors[0]} et al."
+        
+        year_str = f"({self.year})" if self.year else ""
+        journal_str = f"{self.journal}." if self.journal else ""
+        doi_str = f"https://doi.org/{self.doi}" if self.doi else ""
+        
+        return f"{authors_str} {year_str}. {self.title}. {journal_str} {doi_str}".strip()
 
 
 class CitationManager:
-    """
-    Manager for handling citations and bibliography.
-    """
+    """Citation manager"""
     
     def __init__(self):
-        """Initialize the citation manager."""
-        self.papers: Dict[str, PaperMetadata] = {}  # DOI -> PaperMetadata
-        self.cached_search_results: Dict[str, List[PaperMetadata]] = {}
+        self.papers: Dict[str, PaperMetadata] = {}
         
     def add_paper(self, paper: PaperMetadata) -> None:
-        """
-        Add a paper to the citation manager.
-        
-        Args:
-            paper: Paper metadata to add
-        """
-        if paper.doi:
-            self.papers[paper.doi] = paper
-        else:
-            # Use title as key if no DOI
-            key = paper.title.lower().strip()
-            existing = False
-            
-            # Check if we already have this paper
-            for existing_paper in self.papers.values():
-                if existing_paper.title.lower().strip() == key:
-                    existing = True
-                    break
-                    
-            if not existing:
-                # Add with a generated key
-                generated_key = f"paper_{len(self.papers)}"
-                self.papers[generated_key] = paper
+        """Add paper"""
+        key = paper.doi if paper.doi else paper.title.lower().strip()
+        if key not in self.papers:
+            self.papers[key] = paper
     
     def clear(self) -> None:
-        """Clear all papers from the manager."""
+        """Clear all papers"""
         self.papers.clear()
-        self.cached_search_results.clear()
 
 class LiteratureSearch:
     """
-    Tool for searching scientific literature across multiple sources.
+    Multi-source academic literature search tool
+    
+    Supported sources:
+    - arXiv: Preprints in physics, mathematics, computer science, etc.
+    - Semantic Scholar: Comprehensive academic search engine
+    - CrossRef: DOI lookup and metadata
+    - CORE: Open access research papers
     """
     
     def __init__(self, 
-                email: str, 
-                api_keys: Optional[Dict[str, str]] = None,
-                citation_manager: Optional[CitationManager] = None):
+                 config: Optional[Dict[str, Any]] = None):
         """
-        Initialize the literature search tool.
+        Initialize literature search tool
         
         Args:
-            email: Email for API access (required for PubMed)
-            api_keys: Dictionary of API keys for different sources
-            citation_manager: Citation manager to use
+            email: Email for API access (optional)
+            api_keys: API key dictionary (optional)
+            citation_manager: Citation manager
+            timeout: Request timeout in seconds
         """
-        self.email = email
-        self.api_keys = api_keys or {}
-        self.citation_manager = citation_manager or CitationManager()
+        self.email = config.get("email") or "user@example.com"
+        self.api_keys = config.get("api_keys") or {}
+        self.timeout = config.get("timeout") or 30
         
-        # Default search parameters
+        self.kg_config = config.get('kg_papers', {}) if config else {}
+        
+        self.citation_manager = CitationManager()
+        # Cache
+        self._cache: Dict[str, List[PaperMetadata]] = {}
+        
+        # Default configuration
         self.default_max_results = 10
-        self.default_sort = "relevance"  # or "date"
         
-        # Cache for search results
-        self._cache = {}
-        
-    async def search_pubmed(self,
+        # User-Agent for requests
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+        }
+    
+    async def search_arxiv(self,
                           query: str,
                           max_results: int = 10,
-                          sort: str = "relevance",
                           **kwargs) -> List[PaperMetadata]:
         """
-        Search PubMed for papers matching the query.
+        Search arXiv preprints
         
         Args:
             query: Search query
             max_results: Maximum number of results
-            sort: Sort order ("relevance" or "date")
             
         Returns:
             List of paper metadata
         """
-        # Build the cache key
-        cache_key = f"pubmed:{query}:{max_results}:{sort}"
+        cache_key = f"arxiv:{query}:{max_results}"
         if cache_key in self._cache:
-            logger.info(f"Using cached results for PubMed query: {query}")
+            logger.info(f"[arXiv] Using cached results: {query}")
             return self._cache[cache_key]
-            
-        logger.info(f"Searching PubMed for: {query}")
         
-        # PubMed API base URLs
-        base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
-        search_url = f"{base_url}/esearch.fcgi"
-        fetch_url = f"{base_url}/efetch.fcgi"
+        logger.debug(f"[arXiv] Searching: {query}")
         
-        # Search parameters
-        sort_param = "relevance" if sort == "relevance" else "pub+date"
-        search_params = {
-            "db": "pubmed",
-            "term": query,
-            "retmax": max_results,
-            "sort": sort_param,
-            "retmode": "json",
-            "email": self.email,
-            "tool": "search_tool"
-        }
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                # First, search for matching PMIDs
-                async with session.get(search_url, params=search_params) as response:
-                    if response.status != 200:
-                        logger.error(f"PubMed search error: {response.status}")
-                        return []
-                        
-                    search_data = await response.json() if response.content_type == 'application/json' else {}
-                    pmids = search_data.get("esearchresult", {}).get("idlist", [])
-                    
-                    if not pmids:
-                        logger.info(f"No PubMed results found for query: {query}")
-                        return []
-                    
-                    # Now fetch details for these PMIDs
-                    fetch_params = {
-                        "db": "pubmed",
-                        "id": ",".join(pmids),
-                        "retmode": "xml",
-                        "email": self.email,
-                        "tool": "search_tool"
-                    }
-                    
-                    async with session.get(fetch_url, params=fetch_params) as fetch_response:
-                        if fetch_response.status != 200:
-                            logger.error(f"PubMed fetch error: {fetch_response.status}")
-                            return []
-                            
-                        xml_data = await fetch_response.text()
-                        papers = self._parse_pubmed_xml(xml_data)
-                        
-                        # Cache the results
-                        self._cache[cache_key] = papers
-                        
-                        # Add papers to citation manager
-                        for paper in papers:
-                            self.citation_manager.add_paper(paper)
-                            
-                        return papers
-                        
-        except Exception as e:
-            logger.error(f"Error searching PubMed: {str(e)}")
-            return []
-    
-    async def search_arxiv(self, 
-                         query: str, 
-                         max_results: int = 10, 
-                         sort: str = "relevance",
-                         categories: Optional[List[str]] = None,
-                         **kwargs) -> List[PaperMetadata]:
-        """
-        Search arXiv for papers matching the query.
-        
-        Args:
-            query: Search query
-            max_results: Maximum number of results
-            sort: Sort order ("relevance" or "date")
-            categories: List of arXiv categories to search
-            
-        Returns:
-            List of paper metadata
-        """
-        # Build the cache key
-        cats_str = ",".join(categories) if categories else "all"
-        cache_key = f"arxiv:{query}:{max_results}:{sort}:{cats_str}"
-        if cache_key in self._cache:
-            logger.info(f"Using cached results for arXiv query: {query}")
-            return self._cache[cache_key]
-            
-        logger.debug(f"Searching arXiv for: {query}")
-        
-        # arXiv API URL
-        search_url = "http://export.arxiv.org/api/query"
-        
-        # Sort parameter
-        sort_param = "relevance" if sort == "relevance" else "submittedDate"
-        
-        # Category filter
-        cat_filter = ""
-        if categories:
-            cat_filter = " AND (" + " OR ".join([f"cat:{cat}" for cat in categories]) + ")"
-        
-        # Search parameters
-        search_params = {
-            "search_query": f"all:{query}{cat_filter}",
+        url = "http://export.arxiv.org/api/query"
+        params = {
+            "search_query": f"all:{query}",
+            "start": 0,
             "max_results": max_results,
-            "sortBy": sort_param,
+            "sortBy": "relevance",
             "sortOrder": "descending"
         }
         
-        tries = 3
-        for attempt in range(tries):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(search_url, params=search_params) as response:
-                        if response.status != 200:
-                            logger.error(f"arXiv search error: {response.status}")
-                            if attempt < tries - 1:
-                                logger.info("Retrying in 10 seconds due to error...")
-                                await asyncio.sleep(10)
-                            else:
-                                return []
-                        else:
-                            xml_data = await response.text()
-                            logger.info(f'arXiv REQUEST {query} success!')
+        try:
+            timeout = aiohttp.ClientTimeout(total=self.timeout)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=self.headers) as response:
+                    if response.status != 200:
+                        logger.error(f"[arXiv] Request failed: {response.status}")
+                        return []
                     
-                        
-                        papers = self._parse_arxiv_xml(xml_data)
-                        
-                        # Cache the results
-                        self._cache[cache_key] = papers
-                        
-                        logger.info(f"Get {len(papers)} papers from arXiv")
-                        
-                        # Add papers to citation manager
-                        for paper in papers:
-                            self.citation_manager.add_paper(paper)
-                            
-                        return papers
-                        
-            except Exception as e:
-                logger.error(f"Error searching arXiv: {e}")
-                return []
+                    xml_text = await response.text()
+                    papers = self._parse_arxiv_xml(xml_text)
+                    
+                    # logger.info(f"[arXiv] Found {len(papers)} papers")
+                    
+                    self._cache[cache_key] = papers
+                    for paper in papers:
+                        self.citation_manager.add_paper(paper)
+                    
+                    return papers
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"[arXiv] Request timeout")
+            return []
+        except Exception as e:
+            logger.error(f"[arXiv] Search error: {e}")
+            return []
     
     async def search_semantic_scholar(self,
-                                    query: str,
-                                    max_results: int = 10,
-                                    **kwargs) -> List[PaperMetadata]:
+                                      query: str,
+                                      max_results: int = 10,
+                                      **kwargs) -> List[PaperMetadata]:
         """
-        Search Semantic Scholar for papers matching the query.
+        Search Semantic Scholar
         
         Args:
             query: Search query
@@ -350,282 +215,513 @@ class LiteratureSearch:
         Returns:
             List of paper metadata
         """
-        # Check if API key is available
-        api_key = os.getenv("S2_API_KEY") or self.api_keys.get("semantic_scholar")
-        if not api_key:
-            logger.warning("No API key for Semantic Scholar, using limited access")
-            
-        # Build the cache key
         cache_key = f"semantic:{query}:{max_results}"
         if cache_key in self._cache:
-            logger.info(f"Using cached results for Semantic Scholar query: {query}")
+            logger.info(f"[Semantic Scholar] Using cached results: {query}")
             return self._cache[cache_key]
-            
-        logger.info(f"Searching Semantic Scholar for: {query}")
         
-        # Semantic Scholar API URL
-        search_url = "https://api.semanticscholar.org/graph/v1/paper/search"
+        logger.debug(f"[Semantic Scholar] Searching: {query}")
         
-        # Search parameters
-        search_params = {
+        # API configuration
+        url = "https://api.semanticscholar.org/graph/v1/paper/search"
+        api_key = os.getenv("S2_API_KEY") or self.api_keys.get("semantic_scholar")
+        
+        headers = dict(self.headers)
+        if api_key:
+            headers["x-api-key"] = api_key
+        
+        params = {
             "query": query,
-            "limit": max_results,
-            # "fields": "title,abstract,authors,year,journal,url,citationCount,doi",
-            "fields": "title,abstract,authors.name,year,journal.name,url,citationCount,doi"
+            "limit": min(max_results, 100),  # API limit
+            "fields": "title,abstract,authors,year,venue,url,citationCount,externalIds,openAccessPdf"
         }
         
-        # Headers
-        headers = {"x-api-key": api_key} if api_key else {}
-        
-        tries = 3
-        for attempt in range(tries):
-            search_data = {}
-            papers = []
-            try:
-                # Rate limit between requests
-                await asyncio.sleep(1)
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(search_url, params=search_params, headers=headers) as response:
-                        if response.status != 200:
-                            logger.error(f"Semantic Scholar search error: {response.status}")
-                            if attempt < tries - 1:
-                                logger.info("Retrying in 10 seconds due to error...")
-                                await asyncio.sleep(10)
-                            else:
-                                return []
-                        else:
-                            search_data = await response.json() if response.content_type == 'application/json' else {}
-                            papers = []
+        try:
+            await asyncio.sleep(1)  # Rate limiting
+            timeout = aiohttp.ClientTimeout(total=self.timeout)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status == 429:
+                        logger.warning(f"[Semantic Scholar] Rate limited, waiting to retry...")
+                        await asyncio.sleep(5)
+                        return []
                     
-                        for paper_data in search_data.get("data", []):
-                            author_list = [author.get("name", "") for author in paper_data.get("authors", [])]
-                            
-                            paper = PaperMetadata(
-                                title=paper_data.get("title", ""),
-                                authors=author_list,
-                                abstract=paper_data.get("abstract", ""),
-                                year=paper_data.get("year"),
-                                doi=paper_data.get("doi"),
-                                journal=paper_data.get("journal", {}).get("name") if paper_data.get("journal") else None,
-                                url=paper_data.get("url"),
-                                citations=paper_data.get("citationCount")
-                            )
-                            papers.append(paper)
+                    if response.status != 200:
+                        logger.error(f"[Semantic Scholar] Request failed: {response.status}")
+                        return []
+                    
+                    data = await response.json()
+                    papers = []
+                    
+                    for item in data.get("data", []):
+                        authors = [a.get("name", "") for a in item.get("authors", [])]
+                        external_ids = item.get("externalIds", {})
+                        pdf_info = item.get("openAccessPdf", {})
                         
-                        # Cache the results
-                        self._cache[cache_key] = papers
-                        
-                        for paper in papers:
-                            self.citation_manager.add_paper(paper)
-                        
-                        return papers
-      
-            except Exception as e:
-                logger.error(f"Error searching Semantic Scholar: {str(e)}")
-                return []
-
-        
-    async def multi_source_search(self, 
-                               query: str, 
-                               sources: List[str] = None,
-                               max_results: int = 10,
-                               **kwargs) -> Dict[str, List[PaperMetadata]]:
+                        paper = PaperMetadata(
+                            title=item.get("title", ""),
+                            authors=authors,
+                            abstract=item.get("abstract", ""),
+                            year=item.get("year"),
+                            doi=external_ids.get("DOI"),
+                            journal=item.get("venue"),
+                            url=item.get("url"),
+                            citations=item.get("citationCount"),
+                            pdf_url=pdf_info.get("url") if pdf_info else None,
+                            source="semantic_scholar"
+                        )
+                        papers.append(paper)
+                    
+                    # logger.info(f"[Semantic Scholar] Found {len(papers)} papers")
+                    
+                    self._cache[cache_key] = papers
+                    for paper in papers:
+                        self.citation_manager.add_paper(paper)
+                    
+                    return papers
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"[Semantic Scholar] Request timeout")
+            return []
+        except Exception as e:
+            logger.error(f"[Semantic Scholar] Search error: {e}")
+            return []
+    
+    async def search_crossref(self,
+                             query: str,
+                             max_results: int = 10,
+                             **kwargs) -> List[PaperMetadata]:
         """
-        Search multiple sources simultaneously.
+        Search CrossRef (DOI database)
         
         Args:
             query: Search query
-            sources: List of sources to search
-            max_results: Maximum results per source
+            max_results: Maximum number of results
             
         Returns:
-            Dictionary mapping source names to result lists
+            List of paper metadata
         """
-        if not sources:
-            sources = ["arxiv"]
+        cache_key = f"crossref:{query}:{max_results}"
+        if cache_key in self._cache:
+            logger.info(f"[CrossRef] Using cached results: {query}")
+            return self._cache[cache_key]
+        
+        logger.debug(f"[CrossRef] Searching: {query}")
+        
+        url = "https://api.crossref.org/works"
+        params = {
+            "query": query,
+            "rows": max_results,
+            "select": "DOI,title,author,abstract,published,container-title,URL"
+        }
+        
+        headers = dict(self.headers)
+        headers["mailto"] = self.email
+        
+        try:
+            timeout = aiohttp.ClientTimeout(total=self.timeout)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status != 200:
+                        logger.error(f"[CrossRef] Request failed: {response.status}")
+                        return []
+                    
+                    data = await response.json()
+                    papers = []
+                    
+                    for item in data.get("message", {}).get("items", []):
+                        # Extract authors
+                        authors = []
+                        for author in item.get("author", []):
+                            given = author.get("given", "")
+                            family = author.get("family", "")
+                            if given and family:
+                                authors.append(f"{given} {family}")
+                            elif family:
+                                authors.append(family)
+                        
+                        # Extract title
+                        title_list = item.get("title", [])
+                        title = title_list[0] if title_list else ""
+                        
+                        # Extract year
+                        year = None
+                        pub_date = item.get("published", {}).get("date-parts", [[]])[0]
+                        if pub_date:
+                            year = pub_date[0] if len(pub_date) > 0 else None
+                        
+                        # Extract journal
+                        journal_list = item.get("container-title", [])
+                        journal = journal_list[0] if journal_list else None
+                        
+                        paper = PaperMetadata(
+                            title=title,
+                            authors=authors,
+                            abstract=item.get("abstract", ""),
+                            year=year,
+                            doi=item.get("DOI"),
+                            journal=journal,
+                            url=item.get("URL"),
+                            source="crossref"
+                        )
+                        papers.append(paper)
+                    
+                    # logger.info(f"[CrossRef] Found {len(papers)} papers")
+                    
+                    self._cache[cache_key] = papers
+                    for paper in papers:
+                        self.citation_manager.add_paper(paper)
+                    
+                    return papers
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"[CrossRef] Request timeout")
+            return []
+        except Exception as e:
+            logger.error(f"[CrossRef] Search error: {e}")
+            return []
+    
+    async def search_core(self,
+                         query: str,
+                         max_results: int = 10,
+                         **kwargs) -> List[PaperMetadata]:
+        """
+        Search CORE (open access papers)
+        
+        Args:
+            query: Search query
+            max_results: Maximum number of results
+            
+        Returns:
+            List of paper metadata
+        """
+        cache_key = f"core:{query}:{max_results}"
+        if cache_key in self._cache:
+            logger.info(f"[CORE] Using cached results: {query}")
+            return self._cache[cache_key]
+        
+        logger.debug(f"[CORE] Searching: {query}")
+        
+        api_key = os.getenv("CORE_API_KEY") or self.api_keys.get("core")
+        if not api_key:
+            logger.warning("[CORE] No API key available, skipping search")
+            return []
+        
+        url = "https://api.core.ac.uk/v3/search/works"
+        headers = dict(self.headers)
+        headers["Authorization"] = f"Bearer {api_key}"
+        
+        params = {
+            "q": query,
+            "limit": max_results
+        }
+        
+        try:
+            timeout = aiohttp.ClientTimeout(total=self.timeout)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status != 200:
+                        logger.error(f"[CORE] Request failed: {response.status}")
+                        return []
+                    
+                    data = await response.json()
+                    papers = []
+                    
+                    for item in data.get("results", []):
+                        authors = [a.get("name", "") for a in item.get("authors", [])]
+                        
+                        paper = PaperMetadata(
+                            title=item.get("title", ""),
+                            authors=authors,
+                            abstract=item.get("abstract", ""),
+                            year=item.get("yearPublished"),
+                            doi=item.get("doi"),
+                            journal=item.get("publisher"),
+                            url=item.get("downloadUrl"),
+                            pdf_url=item.get("downloadUrl"),
+                            source="core"
+                        )
+                        papers.append(paper)
+                    
+                    # logger.info(f"[CORE] Found {len(papers)} papers")
+                    
+                    self._cache[cache_key] = papers
+                    for paper in papers:
+                        self.citation_manager.add_paper(paper)
+                    
+                    return papers
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"[CORE] Request timeout")
+            return []
+        except Exception as e:
+            logger.error(f"[CORE] Search error: {e}")
+            return []
+        
+    async def search_kg_papers(self,
+                         query: str,
+                         max_results: Optional[int] = None,
+                         **kwargs) -> List[PaperMetadata]: 
+        """
+        Search local knowledge graph paper database using the retrieval API.
+        
+        Args:
+            query: Search query string
+            max_results: Number of top results to return (default: from config or 3)
+        
+        Returns:
+            List of paper dictionaries with metadata and content
+            
+        Example:
+            >>> papers = search_kg_papers("machine learning", top_k=5)
+            >>> for paper in papers:
+            >>>     print(paper['title'])
+            >>>     print(paper.get('content', 'No content available'))
+            >>>     print(f"Is stub: {paper.get('is_stub', False)}")
+        """
+        # Load configuration
+        cache_key = f"kg:{query}:{max_results}"
+        if cache_key in self._cache:
+            logger.info(f"[CrossRef] Using cached results: {query}")
+            return self._cache[cache_key]
+        # Use provided values or fall back to config or defaults
+        
+        api_url = self.kg_config.get('api_url', 'localhost:5001')
+        max_results = max_results
 
-        # Prepare search tasks
+        search_endpoint = f"{api_url}/search_kg_papers"
+
+        payload = {
+            "query": query,
+            "top_k": max_results,
+        }
+        
+        try:
+            logger.debug(f"[Knowledge Graph]Searching: '{query}' (top_k={max_results})")
+            
+            response = requests.post(
+                search_endpoint,
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=300
+            )
+
+            if response.status_code != 200:
+                logger.error(f"Search failed with status {response.status_code}: {response.text}")
+                return []
+            
+            data = response.json()
+            
+            papers = []
+            for paper in data:
+                paper = PaperMetadata(
+                    title=paper.get('title', ''),
+                    authors=paper.get('authors', []),
+                    abstract=paper.get('abstract', ''),
+                    content=paper.get('content', ''),
+                    year=paper.get('year', None),
+                    doi=paper.get('doi', None),
+                    url=paper.get('url', None),
+                    citations=paper.get('citations', 0),
+                    pdf_url=paper.get('pdf_url', None),
+                    source="kg_papers"
+                )
+                papers.append(paper)            
+            
+            if not papers:
+                logger.info(f"No results found for query: '{query}'")
+                return []
+            
+            # logger.info(f"[Knowledge Graph] Found {len(papers)} papers from knowledge graph")
+            self._cache[cache_key] = papers
+            
+            for paper in papers:
+                self.citation_manager.add_paper(paper)
+            
+            return papers
+            
+        except requests.exceptions.Timeout:
+            logger.error(f"KG Search request timed out after 300 seconds")
+            return []
+        except requests.exceptions.ConnectionError:
+            logger.error(f"Could not connect to KG API at {api_url}. Is the server running?")
+            return []
+        except Exception as e:
+            logger.error(f"Error searching KG papers: {str(e)}")
+            return []
+
+    async def multi_source_search(self,
+                                  query: str,
+                                  sources: Optional[List[str]] = None,
+                                  max_results: int = 10,
+                                  **kwargs) -> Dict[str, List[PaperMetadata]]:
+        """
+        Multi-source parallel search
+        
+        Args:
+            query: Search query
+            sources: List of sources (arxiv, semantic_scholar, crossref, core)
+            max_results: Maximum number of results per source
+            
+        Returns:
+            Mapping from source name to result list
+        """
+        
         tasks = []
+        task_sources = []
+        
         for source in sources:
             if source == "arxiv":
                 tasks.append(self.search_arxiv(query, max_results, **kwargs))
-            elif source == "pubmed":
-                tasks.append(self.search_pubmed(query, max_results, **kwargs))
+                task_sources.append("arxiv")
             elif source == "semantic_scholar":
                 tasks.append(self.search_semantic_scholar(query, max_results, **kwargs))
-                
-        # Execute all searches in parallel
+                task_sources.append("semantic_scholar")
+            elif source == "crossref":
+                tasks.append(self.search_crossref(query, max_results, **kwargs))
+                task_sources.append("crossref")
+            elif source == "core":
+                tasks.append(self.search_core(query, max_results, **kwargs))
+                task_sources.append("core")
+            elif source == "kg_papers":
+                tasks.append(self.search_kg_papers(query, max_results, **kwargs))
+                task_sources.append("kg_papers")    
+        
+        logger.debug(f"[Multi-source search] Executing searches on sources: {task_sources} for query {query}" )
+        
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Process results
-        combined_results = {}
-        for source, result in zip(sources, results):
+        combined = {}
+        for source, result in zip(task_sources, results):
             if isinstance(result, Exception):
-                logger.error(f"Error searching {source}: {str(result)}")
-                combined_results[source] = []
+                logger.error(f"[{source}] Error: {result}")
+                combined[source] = []
             else:
-                combined_results[source] = result
-                
-        return combined_results
+                combined[source] = result
+        
+        total = sum(len(papers) for papers in combined.values())
+        logger.info(f"[Multi-source search] Found {total} papers in total")
+        
+        return combined
     
-    def _parse_pubmed_xml(self, xml_data: str) -> List[PaperMetadata]:
+    async def search(self,
+                    query: str,
+                    max_results: int = 10,
+                    sources: Optional[List[str]] = None,
+                    **kwargs) -> List[PaperMetadata]:
         """
-        Parse PubMed XML response to extract paper metadata.
+        Simplified search interface - merges results from multiple sources
         
         Args:
-            xml_data: XML response from PubMed
+            query: Search query
+            max_results: Total maximum number of results
+            sources: List of sources
             
         Returns:
-            List of paper metadata
+            Merged and deduplicated list of papers
         """
-        papers = []
-        soup = BeautifulSoup(xml_data, "xml")
+        results_dict = await self.multi_source_search(
+            query, 
+            sources=sources, 
+            max_results=max_results,
+            **kwargs
+        )
         
-        for article in soup.find_all("PubmedArticle"):
-            try:
-                # Extract article data
-                article_data = article.find("Article")
-                if not article_data:
-                    continue
-                    
-                # Title
-                title = article_data.find("ArticleTitle")
-                title_text = title.text if title else ""
-                
-                # Abstract
-                abstract_elem = article_data.find("Abstract")
-                abstract_text = ""
-                if abstract_elem:
-                    abstract_parts = abstract_elem.find_all("AbstractText")
-                    if abstract_parts:
-                        abstract_text = " ".join(part.text for part in abstract_parts)
-                
-                # Authors
-                authors = []
-                author_list = article_data.find("AuthorList")
-                if author_list:
-                    for author in author_list.find_all("Author"):
-                        last_name = author.find("LastName")
-                        fore_name = author.find("ForeName")
-                        
-                        if last_name and fore_name:
-                            authors.append(f"{fore_name.text} {last_name.text}")
-                        elif last_name:
-                            authors.append(last_name.text)
-                
-                # Journal
-                journal_elem = article_data.find("Journal")
-                journal_name = ""
-                if journal_elem:
-                    journal_title = journal_elem.find("Title")
-                    if journal_title:
-                        journal_name = journal_title.text
-                
-                # Publication Date
-                pub_date_elem = journal_elem.find("PubDate") if journal_elem else None
-                year = None
-                if pub_date_elem:
-                    year_elem = pub_date_elem.find("Year")
-                    if year_elem:
-                        try:
-                            year = int(year_elem.text)
-                        except ValueError:
-                            pass
-                
-                # DOI
-                doi = None
-                article_id_list = article.find("ArticleIdList")
-                if article_id_list:
-                    for article_id in article_id_list.find_all("ArticleId"):
-                        if article_id.get("IdType") == "doi":
-                            doi = article_id.text
-                            break
-                
-                # Create paper metadata
-                paper = PaperMetadata(
-                    title=title_text,
-                    authors=authors,
-                    abstract=abstract_text,
-                    year=year,
-                    doi=doi,
-                    journal=journal_name
-                )
-                papers.append(paper)
-                
-            except Exception as e:
-                logger.error(f"Error parsing PubMed article: {str(e)}")
+        # Merge and deduplicate
+        seen_titles = set()
+        all_papers = []
         
-        return papers
+        for source, papers in results_dict.items():
+            for paper in papers:
+                title_key = paper.title.lower().strip()
+                if title_key not in seen_titles:
+                    seen_titles.add(title_key)
+                    all_papers.append(paper)
+        
+        return all_papers[:max_results]
+    
+    def clear_cache(self) -> None:
+        """Clear search cache"""
+        self._cache.clear()
+        logger.info("Cache cleared")
     
     def _parse_arxiv_xml(self, xml_data: str) -> List[PaperMetadata]:
         """
-        Parse arXiv XML response to extract paper metadata.
+        Parse arXiv XML response
         
         Args:
-            xml_data: XML response from arXiv
+            xml_data: arXiv XML response
             
         Returns:
             List of paper metadata
         """
         papers = []
-        soup = BeautifulSoup(xml_data, "xml")
         
-        for entry in soup.find_all("entry"):
-            try:
-                # Title
-                title_elem = entry.find("title")
-                title_text = title_elem.text.strip() if title_elem else ""
-                
-                # Abstract
-                summary_elem = entry.find("summary")
-                abstract_text = summary_elem.text.strip() if summary_elem else ""
-                
-                # Authors
-                authors = []
-                for author in entry.find_all("author"):
-                    name_elem = author.find("name")
-                    if name_elem:
-                        authors.append(name_elem.text.strip())
-                
-                # Publication year
-                published_elem = entry.find("published")
-                year = None
-                if published_elem:
-                    try:
-                        pub_date = published_elem.text.strip()
-                        match = re.search(r"(\d{4})", pub_date)
+        try:
+            soup = BeautifulSoup(xml_data, "xml")
+            
+            for entry in soup.find_all("entry"):
+                try:
+                    # Title
+                    title_elem = entry.find("title")
+                    title = title_elem.text.strip().replace("\n", " ") if title_elem else ""
+                    
+                    # Abstract
+                    summary_elem = entry.find("summary")
+                    abstract = summary_elem.text.strip().replace("\n", " ") if summary_elem else ""
+                    
+                    # Authors
+                    authors = []
+                    for author in entry.find_all("author"):
+                        name_elem = author.find("name")
+                        if name_elem:
+                            authors.append(name_elem.text.strip())
+                    
+                    # Publication year
+                    year = None
+                    published_elem = entry.find("published")
+                    if published_elem:
+                        match = re.search(r"(\d{4})", published_elem.text)
                         if match:
                             year = int(match.group(1))
-                    except ValueError:
-                        pass
-                
-                # DOI and URL
-                doi = None
-                url = None
-                for link in entry.find_all("link"):
-                    href = link.get("href", "")
-                    if link.get("title") == "doi":
-                        doi = href.replace("http://dx.doi.org/", "")
-                    elif link.get("rel") == "alternate":
-                        url = href
-                
-                # Create paper metadata
-                paper = PaperMetadata(
-                    title=title_text,
-                    authors=authors,
-                    abstract=abstract_text,
-                    year=year,
-                    doi=doi,
-                    journal="arXiv",
-                    url=url
-                )
-                papers.append(paper)
-                
-            except Exception as e:
-                logger.error(f"Error parsing arXiv entry: {str(e)}")
+                    
+                    # URL and PDF
+                    url = None
+                    pdf_url = None
+                    for link in entry.find_all("link"):
+                        href = link.get("href", "")
+                        if link.get("rel") == "alternate":
+                            url = href
+                        elif link.get("title") == "pdf":
+                            pdf_url = href
+                    
+                    # arXiv ID
+                    id_elem = entry.find("id")
+                    if id_elem and not url:
+                        url = id_elem.text.strip()
+                    
+                    if not pdf_url and url:
+                        # Generate PDF link from URL
+                        pdf_url = url.replace("/abs/", "/pdf/") + ".pdf"
+                    
+                    if title:
+                        paper = PaperMetadata(
+                            title=title,
+                            authors=authors,
+                            abstract=abstract,
+                            year=year,
+                            journal="arXiv",
+                            url=url,
+                            pdf_url=pdf_url,
+                            source="arxiv"
+                        )
+                        papers.append(paper)
+                        
+                except Exception as e:
+                    logger.debug(f"Error parsing single arXiv entry: {e}")
+                    continue
+                    
+        except Exception as e:
+            logger.error(f"Error parsing arXiv XML: {e}")
         
         return papers
-    
-    def clear_cache(self) -> None:
-        """Clear the search cache."""
-        self._cache.clear()

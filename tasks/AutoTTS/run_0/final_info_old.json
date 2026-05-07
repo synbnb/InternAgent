@@ -1,0 +1,10 @@
+{
+    "math": {
+        "means": {
+            "accuracy": 0.834,
+            "prompt_tokens": 4859447,
+            "completion_tokens": 3149652,
+            "total_calls": 6201
+        }
+    }
+}

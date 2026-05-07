@@ -5,12 +5,11 @@
 
 
 ## 🔥 News
-📌 **Pinned**: Leveraging the general capabilities of InternAgent 1.5, **anyone can now submit their algorithm tasks for optimization by opening an [issue](https://github.com/InternScience/InternAgent/issues/new?template=task_submit.yml) in this repository.** We will **regularly update** the algorithm design results on this [website](https://internscience.github.io/InternAgent/). For other scientific discovery tasks, please visit [Intern-Discovery](https://discovery.intern-ai.org.cn/org/ailab/).
+- **2026.5.07**: 🔥🔥 We have open-sourced InternAgent-1.5 with advanced features, including  enhanced algorithm discovery tasks, autonomous scientific paper reproduction, memory module, and deep research for tackling complex research challenges.
 
----
-- **2026.3.17**: 🚀🚀 We provide public [access](https://scphub.intern-ai.org.cn/detail/28) to InternAgent's Deep Research capabilities, enabling developers and researchers to seamlessly integrate its advanced deep research functionality into their own workflows. 
+- **2026.3.17**: 🚀🚀 We provide public [access](https://scphub.intern-ai.org.cn/detail/28) to InternAgent's Deep Research capabilities, enabling developers and researchers to seamlessly integrate its advanced deep research functionality into their own workflows.
 
-- **2026.2.14**: ❤️‍🔥❤️‍🔥 We open-source **[MLEvolve](https://github.com/InternScience/MLEvolve)**, the core implementation of InternAgent's solution optimization subsystem for algorithm design tasks. As the **open-source method** to achieve **#1 on MLEBench**, MLEvolve demonstrates powerful capabilities in solution optimization within bounded hypothesis spaces. 
+- **2026.2.14**: ❤️‍🔥❤️‍🔥 We open-source **[MLEvolve](https://github.com/InternScience/MLEvolve)**, the core implementation of InternAgent's solution optimization subsystem for algorithm design tasks. As the **open-source method** to achieve **#1 on MLEBench**, MLEvolve demonstrates powerful capabilities in solution optimization within bounded hypothesis spaces.
 
 - **2026.2.10**: 🔥 Official release of the [InternAgent 1.5 Technical Report](https://huggingface.co/papers/2602.08990). InternAgent 1.5 achieves leading performance on scientific reasoning benchmarks including **GAIA, HLE, GPQA, and FrontierScience**, and supports end-to-end autonomous scientific discovery tasks across **Physical, Biology, Earth, and Life Science domains**, enabling both algorithm discovery and empirical discovery (dry/wet-lab experiments).
 
@@ -27,192 +26,17 @@
 
 ---
 
-## 📖 Overview
-
-![InternAgent](assets/internagent_overall.png)
-
-**InternAgent 1.5** is a unified autonomous system for end-to-end scientific discovery across both **Algorithm Discovery** and **Empirical Discovery**. Building on InternAgent 1.0, it organizes scientific inquiry into three coordinated subsystems: **Generation** (hypothesis construction via deep research), **Verification** (methodological evaluation via solution refinement), and **Evolution** (evidence-driven refinement via long-horizon memory).
-![Benchmark](assets/benchmark.png)
-InternAgent 1.5 achieves **leading performance** on scientific reasoning benchmarks (GAIA, HLE, GPQA, FrontierScience, SGI-bench) and demonstrates **sustained autonomous optimization** across extended discovery cycles. The system supports **algorithm discovery** (agent memory, reinforcement learning, test-time scaling, ...) and **empirical discovery** workflows (dry-lab simulations and wet-lab experimentation) across Physical, Biological, Earth, and Life Sciences.
-![Capability](assets/capability.png)
-
----
-## 🌟 Core Features
-
-![Framework](assets/internagent_framework.png)
-
-InternAgent 1.5 is built on three foundational subsystems that enable autonomous scientific discovery:
-
-### 🔍 Generation: Deep Research for Hypothesis Construction
-- Autonomous literature analysis and knowledge synthesis across scientific domains
-- Multi-source information integration from papers, code repositories, and domain-specific databases
-- Structured hypothesis formulation grounded in existing scientific evidence
-
-### ✅ Verification: Solution Refinement for Methodological Evaluation
-- Systematic transformation of hypotheses into executable experimental protocols
-- Automated code generation, debugging, and execution across computational and experimental environments
-- Exception-guided intelligent error correction and iterative solution optimization
-
-### 🔄 Evolution: Long-Horizon Memory for Evidence-Driven Refinement
-- Persistent memory architecture that accumulates knowledge across extended research cycles
-- Cross-iteration learning from experimental outcomes and methodological feedback
-- Adaptive optimization that continuously refines hypotheses and experimental designs
-
-### 🧩 Three-Subsystem Coordination
-- **Generation → Verification → Evolution** forms a complete discovery cycle
-- Seamless integration of dry-lab (computational modeling) and wet-lab (physical experimentation) workflows
-- Extensible architecture supporting diverse tasks across Algorithm Discovery and Empirical Discovery
-
-**InternAgent 1.5** delivers end-to-end autonomous scientific discovery, enabling researchers to complete the full cycle—from hypothesis generation to experimental validation—across Physical, Biological, Earth, and Life Sciences.
-
----
-## 🔬 Supported Research Tasks
-
-**Scientific Algorithm Discovery**
-- Suzuki–Miyaura Reaction Yield Prediction
-- Transcription Prediction for Perturbation Response
-- Power Flow Estimation
-- Time Series Forecasting
-- Molecular Dynamics Simulation
-- Enhancer Activity Prediction
-
-**AI Algorithm Discovery**
-- Test-Time Scaling for LLM Reasoning
-- Long-Term Memory Management for Agents
-- Self-Distillation for Mathematical Reasoning
-- Test-Time Reinforcement Learning
-
-**Empirical Discovery**
-- Automated Climate Diagnostics
-- Climate Downscaling Optimization
-- Biological Evidence Synthesis for Target Discovery
-- Hypothesis Generation and Target Prioritization
-- Fluorescent Protein Engineering
-- Automated Reaction Outcome Prediction
-- Generative Scaffold Hopping
-*And more...*
-
----
-
-## 🎉 Benchmark Results
-
-### Results on Al Research Tasks
-
-InternAgent consistently improves upon the baseline and outperforms Dolphin across all tasks, spanning AI and scientific domains.
-
-#### Max Performance
-
-| Task | Metric | Baseline | Dolphin | InternAgent |
-|------|--------|----------|---------|-------------|
-| AutoRYP | R² ↑ | 27.6 | 31.8 (+4.2) | **35.4 (+7.8)** |
-| AutoMD | Forces-MAE ↓ | 0.158 | 0.152 | **0.148** |
-| AutoPower | RMSE ↓ | 0.00473 | 0.00455 | **0.00426** |
-| AutoTSF | MAE ↓ | 0.4382 | 0.4627 | **0.4331** |
-| AutoTPPR | MSE ↓ | 0.197 | 0.173 | **0.146** |
-| AutoEAP | HK-PCC ↑ | 0.65 | 0.76 | **0.79** |
-| AutoSenCls | Acc ↑ | 91.0 | 92.5 (+1.5) | **93.5 (+2.5)** |
-| Auto2DCls | Top-1 Acc ↑ | 81.2 | 82.0 (+0.8) | **83.3 (+2.1)** |
-| Auto3DCls | OA ↑ | 91.0 | 93.9 (+2.9) | **95.5 (+4.5)** |
-| Auto2DSeg | mIoU ↑ | 78.8 | - | **81.0 (+2.2)** |
-| AutoPCDet | mAP ↑ | 65.0 | - | **65.9 (+0.9)** |
-| AutoVLM | QA ↑ | 67.1 | - | **67.6 (+0.5)** |
-
-#### Average Performance
-
-| Task | Metric | Baseline | Dolphin | InternAgent |
-|------|--------|----------|---------|-------------|
-| AutoRYP | R² ↑ | 27.6 | 31.3 (+3.7) | **33.5 (+5.9)** |
-| AutoMD | Forces-MAE ↓ | 0.158 | 0.155 | **0.152** |
-| AutoPower | RMSE ↓ | 0.00473 | 0.00459 | **0.00447** |
-| AutoTSF | MAE ↓ | 0.4382 | - | **0.4346** |
-| AutoTPPR | MSE ↓ | 0.197 | 0.179 | **0.170** |
-| AutoEAP | HK-PCC ↑ | 0.65 | 0.73 | **0.77** |
-| AutoSenCls | Acc ↑ | 91.0 | 91.8 (+0.8) | **92.5 (+1.5)** |
-| Auto2DCls | Top-1 Acc ↑ | 81.2 | 81.8 (+0.6) | **82.2 (+1.0)** |
-| Auto3DCls | OA ↑ | 91.0 | 92.0 (+1.0) | **93.4 (+2.4)** |
-| Auto2DSeg | mIoU ↑ | 78.8 | - | **80.1 (+1.3)** |
-| AutoPCDet | mAP ↑ | 65.0 | - | **65.7 (+0.7)** |
-| AutoVLM | QA ↑ | 67.1 | - | **67.6 (+0.5)** |
-
----
-
-### 🧪 GAIA, GPQA-Diamond, FrontierScience and HLE Benchmarks
-
-InternAgent-1.5 achieved state-of-the-art results across multiple benchmarks.
-### Humanity's Last Exam (HLE)
-
-| Setting | Model | Math | Bio/Med | CS/AI | Physics | Human. | Chem. | Engineer. | Other | Avg. |
-|---------|-------|------|---------|-------|---------|--------|-------|-----------|-------|------|
-| **Text-Only** | Deepseek-R1 | 9.30 | 8.60 | 7.40 | 5.80 | 11.00 | 5.60 | 10.30 | 7.50 | 8.60 |
-| | Gemini-3-pro-preview | 45.08 | 26.13 | 26.79 | 32.67 | 44.04 | **34.65** | **29.69** | 32.39 | 38.00 |
-| | **InternAgent-1.5** | **48.96** | **30.63** | **29.46** | **34.16** | **44.56** | 30.69 | 28.13 | **37.50** | **40.87** |
-| **All-Set** | o4-mini | 19.00 | 11.40 | 12.90 | 12.60 | 9.10 | 12.70 | 12.60 | 6.90 | 14.30 |
-| | GPT-5 | 31.00 | 22.10 | 24.90 | 21.70 | 20.60 | 16.40 | 14.40 | 18.00 | 24.80 |
-| | Gemini-3-pro-preview | 44.76 | 27.14 | 29.05 | 31.30 | **42.92** | **40.00** | **32.43** | 34.33 | 38.04 |
-| | **InternAgent-1.5** | **48.09** | **30.36** | **30.71** | **33.04** | 42.47 | 34.55 | 30.63 | **38.63** | **40.00** |
-
----
-
-### FrontierScience Benchmark
-
-| Method | **Olympiad (avg N=20)** |  |  |  | **Research (avg N=30)** |  |  |  |
-|--------|---------|---------|---------|---------|---------|---------|---------|---------|
-|  | **Bio** | **Chem** | **Phy** | **All** | **Bio** | **Chem** | **Phy** | **All** |
-| o4-mini | **47.00±14.90** | 65.00±6.40 | 53.40±4.50 | 57.40±3.30 | 9.67±5.47 | 8.17±4.37 | 0.83±2.27 | 6.20±2.54 |
-| InternS1-235B | 17.00±12.69 | 52.88±4.05 | 50.40±3.88 | 48.05±2.84 | 4.50±4.35 | 11.00±3.74 | 2.67±3.35 | 6.06±2.30 |
-| Mirothinker-v1.5-30B-A3B | 22.86±4.52 | 69.64±7.49 | 54.86±3.18 | 57.57±3.66 | 8.17±6.39 | 8.50±6.21 | 5.83±4.10 | 7.50±3.77 |
-| DeepSeek-V3.2-Thinking | 26.50±7.26 | 72.25±3.25 | 66.30±2.63 | 64.70±2.41 | 2.50±3.10 | 16.33±4.64 | 1.40±2.70 | 6.84±1.88 |
-| Qwen3-235B-A22B-Thinking | 24.00±9.17 | 61.13±6.05 | 57.10±4.79 | 55.40±3.68 | 10.17±5.08 | 10.00±6.32 | 1.58±2.41 | 7.34±3.37 |
-| Qwen3-30B-A3B-Thinking | 13.50±9.10 | 47.25±4.47 | 42.70±3.65 | 41.60±2.94 | 1.50±2.93 | 2.00±3.32 | 0.70±1.79 | 1.41±1.52 |
-| **InternAgent-1.5** | 46.00±8.00 | **85.50±3.67** | **76.80±2.99** | **77.20±3.06** | **10.33±4.64** | **22.00±6.00** | **3.67±2.87** | **12.00±2.49** |
-
----
-
-### GPQA-Diamond Benchmark
-
-| Agent | Bio | Chem | Phys | Avg. |
-|-------|-----|------|------|------|
-| **Base Models** |  |  |  |  |
-| Qwen-3-8B | - | - | - | 44.44 |
-| Qwen3-32B | - | - | - | 49.49 |
-| Qwen3-235B | - | - | - | 47.47 |
-| Intern-S1 | **89.47** | 59.49 | 93.02 | 78.26 |
-| Deepseek-R1 | 63.16 | 76.34 | 91.86 | 82.32 |
-| o4-mini | 78.95 | 63.44 | 94.19 | 78.28 |
-| GPT-5 | 84.21 | 76.34 | 95.35 | 85.35 |
-| **React Model with Tools** |  |  |  |  |
-| WebShaper | 47.37 | 52.69 | 81.40 | 64.65 |
-| MiroThinker | 84.21 | 75.27 | 95.35 | 84.85 |
-| Tongyi DR | 78.95 | 67.74 | 95.35 | 80.30 |
-| **InternAgent-1.5** | 84.21 | **79.57** | **96.51** | **87.37** |
-
----
-## 🚀🚀 Getting Started with InternAgent 1.5
-
-### Algorithm Discovery Tasks
-For **algorithm discovery tasks** such as Reinforcement Learning, Test-time Scaling, Agent Memory... we currently support access to InternAgent 1.5 by **submitting an issue or pull request in this repository**. Please describe your optimization task, and we will regularly update the algorithm design results.
-
-### Empirical Discovery Tasks
-For **empirical discovery tasks** including computational modeling, dry-lab simulations, and wet-lab experimentation across Physical, Biological, Earth, and Life Sciences, please visit **[Intern-Discovery](https://discovery.intern-ai.org.cn/org/ailab/)**.
-
-***Stay tuned for more updates as we expand access and capabilities!***
-
-## 🚀 Getting Started with InternAgent 1.0
+## 🚀 Getting Started
 
 ### Installation
 
 ```bash
 conda create -n InternAgent python=3.11
 conda activate InternAgent
-
-# Install PyPI requirements
 pip install -r requirements.txt
-
-# Install aider
-python -m pip install -U --upgrade-strategy only-if-needed aider-chat
 ```
 
-### Set Your API Key
+### Configure API Keys
 
 Rename `.env.example` to `.env` and fill in your API keys:
 
@@ -220,22 +44,79 @@ Rename `.env.example` to `.env` and fill in your API keys:
 mv .env.example .env
 ```
 
-### Start Your Research Project
+Key fields in `.env`:
 
-```bash
-./scripts/run_pipeline.sh
+```
+OPENAI_API_KEY=        # OpenAI or compatible API key (used for embeddings and memory)
+OPENAI_API_BASE_URL=   # Base URL for OpenAI-compatible endpoints
+ANTHROPIC_API_KEY=     # Anthropic API key (for Claude-based experiment backends)
 ```
 
-**Configuration Tips:**
-- Modify `configs/config.yaml` to customize your research project
-- Results will be saved in the `results/` directory
-- Check logs in the `logs/` directory
-- To skip idea generation, refer to `scripts/run_skip-idea.sh`
-- Visualize idea evolution using `internagent/vis_tree.py`
+### Run a Discovery Experiment
 
-### About Research Tasks
+`AutoDebug` is a self-contained toy task (no dataset or model downloads required) and is the recommended first run to verify your setup.
 
-We provide the tasks mentioned in our technical report as examples. Each task has different training environments and datasets. Please refer to the code in each task's folder for configuration details.
+```bash
+python launch_discovery.py \
+    --config ./config/default_config.yaml \
+    --task AutoDebug \
+    --exp_backend claudecode
+```
+
+### Run a QA Query
+
+QA mode uses InternAgent's deep research pipeline to answer a research question directly — no experiment loop, just a synthesized answer grounded in literature.
+
+```bash
+python launch_qa.py --question "What are recent advances in memory-augmented LLMs?"
+
+# Optionally save the answer to a file
+python launch_qa.py -q "What are recent advances in memory-augmented LLMs?" -o answer.md
+```
+
+### Master Launcher
+
+`launch.py` is a unified entry point for both modes:
+
+```bash
+python launch.py --mode discovery --task AutoDebug --exp_backend claudecode
+python launch.py --mode qa --question "What are recent advances in memory-augmented LLMs?"
+```
+
+**Configuration tips:**
+- Configuration lives in `config/` — `default_config.yaml` is the main starting point.
+- Results are saved under `results/`, logs under `logs/`.
+- To skip idea generation and run experiments from existing ideas: add `--skip_idea_generation --idea_path <path/to/ideas.json>`.
+- See `scripts/` for ready-to-use example scripts.
+
+### Research Tasks
+
+**Algorithm discovery tasks** live under `tasks/`. Each contains a `prompt.json` (task description), baseline `code/`, and a `launcher.sh`. Datasets and environment-specific setup vary per task — refer to the code in each task folder.
+
+**Scientific paper reproduction tasks** (`sci_tasks`) are a distinct mode where InternAgent is given a published paper and its data, and asked to reproduce the key findings autonomously. These tasks live under `sci_tasks/tasks/` (from the [ResearchClawBench](https://github.com/InternScience/ResearchClawBench) benchmark). See [docs/sci_tasks.md](docs/sci_tasks.md) for a full guide.
+
+### Quick-Start Scripts
+
+Ready-to-use example scripts are provided under `scripts/`:
+
+| Script | Description |
+|---|---|
+| `run_discovery.sh` | Run a full discovery experiment (idea generation → experiments) |
+| `run_skip-idea.sh` | Run experiments from an existing idea file, skipping generation |
+| `run_sci.sh` | Run a scientific paper reproduction task (defaults to `Astronomy_000`) |
+| `run_qa.sh` | Answer a research question via deep research |
+
+---
+
+## 🔧 Advanced Features
+
+### Memory Module
+
+InternAgent 1.5 includes a persistent memory module that records experiment outcomes across sessions, helping the agent avoid previously failed directions and build on successful ones. See [docs/memory_module.md](docs/memory_module.md) for configuration and setup.
+
+### Deep Research
+
+The Deep Research (DR) module decomposes a research question into subtasks, gathers information from academic databases and the web in parallel, and synthesizes findings into a direct answer or structured report. See [docs/deep_research.md](docs/deep_research.md) for configuration and setup.
 
 ---
 

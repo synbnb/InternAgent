@@ -1,0 +1,1 @@
+python code/experiment.py --out_dir $1

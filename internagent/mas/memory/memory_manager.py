@@ -632,10 +632,14 @@ def create_memory_manager(config: Dict[str, Any]) -> MemoryManager:
     Returns:
         Configured MemoryManager instance
     """
-    backend = config.get("memory", {}).get("backend", "file_system")
+    # Read from memory.context_memory configuration
+    memory_config = config.get("memory", {})
+    context_memory_config = memory_config.get("context_memory", {})
+
+    backend = context_memory_config.get("backend", "file_system")
 
     if backend == "file_system":
-        file_dir = config.get("memory", {}).get("file_dir", "results")
+        file_dir = context_memory_config.get("file_dir", "results")
         task_name = config.get("task_name", "DefaultTask")
         return FileSystemMemoryManager(
             data_dir=file_dir,

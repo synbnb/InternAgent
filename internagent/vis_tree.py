@@ -5,12 +5,6 @@ from collections import defaultdict
 from graphviz import Digraph
 from pypdf import PdfWriter # Use pypdf instead of PyPDF2
 
-# NOTE: add trajectory to the JSON file containing ideas
-JSON_FILE = ''
-
-name = JSON_FILE.split("/")[-1].split(".")[0]
-
-OUTPUT_PDF = f'tree_{name}.pdf'
 TEMP_FILE_PREFIX = '_temp_hyp_viz_'
 NODE_WIDTH = 80 # Approx characters per line in node label
 
@@ -41,22 +35,37 @@ def build_graph_recursive(graph, hyp_id, hyp_map, child_map):
             else:
                  print(f"Warning: Child ID {child_id} referenced by {hyp_id} not found in map.")
 
-def main():
+def vis_tree(json_file, output_pdf):
+    """
+    Visualize hypothesis tree from a JSON file.
+
+    Parameters:
+    -----------
+    json_file : str
+        Path to the JSON file containing hypothesis data
+    output_pdf : str
+        Path for the output PDF file
+
+    Returns:
+    --------
+    str or None
+        Path to the generated PDF file, or None if visualization failed
+    """
     # --- 1. Load and Prepare Data ---
     try:
-        with open(JSON_FILE, 'r', encoding='utf-8') as f:
+        with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
     except FileNotFoundError:
-        print(f"Error: JSON file '{JSON_FILE}' not found.")
-        return
+        print(f"Error: JSON file '{json_file}' not found.")
+        return None
     except json.JSONDecodeError:
-        print(f"Error: Could not decode JSON from '{JSON_FILE}'.")
-        return
+        print(f"Error: Could not decode JSON from '{json_file}'.")
+        return None
 
     hypotheses = data.get('hypotheses', [])
     if not hypotheses:
         print("No hypotheses found in the JSON file.")
-        return
+        return None
 
     # Create maps for easy lookup
     hyp_map = {hyp['id']: hyp for hyp in hypotheses}
@@ -90,7 +99,7 @@ def main():
         print("Error: Could not identify any root hypotheses (iteration 0 or null parent_id).")
         # Fallback: maybe treat *all* hypotheses as roots if none are explicitly iteration 0?
         # Or just exit. Let's exit for now.
-        return
+        return None
 
     print(f"Identified {len(roots)} root hypotheses.")
 
@@ -132,10 +141,10 @@ def main():
     # --- 3. Merge PDFs ---
     if not temp_pdf_files:
         print("No temporary PDF files were generated. Cannot create final PDF.")
-        return
+        return None
 
     merger = PdfWriter()
-    print(f"\nMerging {len(temp_pdf_files)} temporary PDFs into '{OUTPUT_PDF}'...")
+    print(f"\nMerging {len(temp_pdf_files)} temporary PDFs into '{output_pdf}'...")
     for pdf_file in temp_pdf_files:
         try:
             if os.path.exists(pdf_file):
@@ -147,11 +156,12 @@ def main():
 
 
     try:
-        with open(OUTPUT_PDF, 'wb') as f_out:
+        with open(output_pdf, 'wb') as f_out:
             merger.write(f_out)
-        print(f"Successfully created '{OUTPUT_PDF}'.")
+        print(f"Successfully created '{output_pdf}'.")
     except Exception as e:
-        print(f"Error writing final PDF '{OUTPUT_PDF}': {e}")
+        print(f"Error writing final PDF '{output_pdf}': {e}")
+        return None
     finally:
         merger.close() # Close the merger object
 
@@ -166,6 +176,23 @@ def main():
                 print(f"  Error removing {pdf_file}: {e}")
 
     print("Visualization process complete.")
+    return output_pdf
+
+
+def main():
+    """Main function for standalone execution."""
+    # NOTE: add trajectory to the JSON file containing ideas
+    JSON_FILE = ''
+
+    if not JSON_FILE:
+        print("Error: Please set JSON_FILE variable to the path of your JSON file.")
+        return
+
+    name = JSON_FILE.split("/")[-1].split(".")[0]
+    OUTPUT_PDF = f'tree_{name}.pdf'
+
+    vis_tree(JSON_FILE, OUTPUT_PDF)
+
 
 if __name__ == "__main__":
     main()

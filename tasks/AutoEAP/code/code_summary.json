@@ -1,0 +1,6 @@
+{
+  "summary": "\nAutoEAP (Automated Enhancer Activity Prediction) is a deep learning implementation adapted from the DeepSTARR model for predicting enhancer activity from DNA sequences. It takes 249bp DNA sequences as input and outputs predictions for two types of regulatory activities: Dev (Developmental) and Hk (Housekeeping) enhancer activities, measured as log2 enrichment scores. The system uses a multi-task convolutional neural network that processes genomic sequences encoded as one-hot vectors or k-mer frequencies, making it useful for understanding gene regulation in Drosophila (fruit fly) genomic data. The complete pipeline includes data preprocessing, model training with early stopping, and comprehensive evaluation using MSE, Pearson, and Spearman correlation metrics.\n",
+  "key_files": "\nexperiment.py:209 - Main executable containing the complete pipeline (data loading, model building, training, and evaluation)\nconfig/config-conv-117.json - Configuration file defining model architecture (4 conv layers with decreasing filters, 1 dense layer, dropout 0.4) and hyperparameters (batch_size=64, lr=0.001, epochs=100)\ndata/Sequences_activity_all.txt - Training dataset with 484,053 DNA sequences (249bp each) and their corresponding Dev/Hk activity labels in TSV format\n",
+  "analyzed_with": "claudecode",
+  "model": "claude-sonnet-4-5-20250929"
+}

@@ -1,6 +1,6 @@
 python launch_discovery.py \
-    --task AutoSeg \
-    --exp_backend aider \
+    --config ./config/default_config.yaml \
+    --task AutoMem \
+    --exp_backend claudecode \
     --skip_idea_generation \
-    --idea_path results/AutoSeg/ideas.json \
-    --gpus 0
+    --idea_path <path/to/ideas.json>

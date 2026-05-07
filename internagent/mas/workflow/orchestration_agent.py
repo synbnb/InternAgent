@@ -11,6 +11,8 @@ agent routing based on workflow state.
 """
 
 import asyncio
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.live import Live
 import logging
 import time
 from datetime import datetime
@@ -23,6 +25,8 @@ from .data_type import Idea, Task, WorkflowSession, WorkflowState
 
 logger = logging.getLogger(__name__)
 
+MAX_CONCURRENT_LLM_TASKS = 10
+MAX_CONCURRENT_SEARCH_TASKS = 10
 
 class OrchestrationAgent:
     """
@@ -77,12 +81,15 @@ class OrchestrationAgent:
         self.top_ideas_evo = workflow_config.get("top_ideas_evo", False)
         self.max_concurrent_tasks = workflow_config.get("max_concurrent_tasks", 5)
 
+        # Store task_name from config (set by InternAgentInterface)
+        self.task_name = config.get("task_name", None)
+
         # Active session tracking
         self.active_sessions = {}
         self.session_callbacks = {}
 
         logger.info(f"OrchestrationAgent initialized with max_iterations={self.max_iterations}, "
-                   f"top_ideas_count={self.top_ideas_count}")
+                   f"top_ideas_count={self.top_ideas_count}, task_name={self.task_name}")
 
     async def create_session(self,
                            goal_description: str,
@@ -107,6 +114,29 @@ class OrchestrationAgent:
             str: Unique session identifier for tracking
         """
         task_id = f"task_{int(time.time())}"
+
+        # Check if DR agent is enabled in config
+        dr_config = self.config.get("agents", {}).get("dr", {})
+        dr_enabled = dr_config.get("enabled", True)
+        
+        background = background or ""
+        
+        if dr_enabled:
+            dr_agent = self._get_agent("dr")
+            if not dr_agent:
+                logger.warning("DR agent initialization failed, proceeding without background generation")
+            else:
+                try:
+                    background = await dr_agent.execute(
+                        {"task": f"Please generate a background for the following task: {goal_description}. Please return the background in a report format."}, 
+                        {}
+                    )
+                    logger.info("DR agent generated background successfully")
+                except Exception as e:
+                    logger.warning(f"DR agent execution failed: {e}, proceeding without background generation")
+        else:
+            logger.info("DR agent disabled in config, skipping background generation")
+
         task = Task(
             id=task_id,
             description=goal_description,
@@ -440,13 +470,16 @@ class OrchestrationAgent:
             logger.info(f"Survey Agent: Conduct in-depth literature research on task {session.id}")
             survey_agent = self._get_agent("survey")
             if survey_agent:
-                paper_lst = await survey_agent.execute(session.task.to_dict(), {})
+                survey_results = await survey_agent.execute(session.task.to_dict(), {})
+                paper_lst = survey_results.get("papers", [])
+                web_results = survey_results.get("web_results", [])
 
         context = {
             "goal": session.task.to_dict(),
             "iteration": session.iterations_completed,
             "feedback": session.feedback_history,
-            "paper_lst": paper_lst
+            "paper_lst": paper_lst,
+            "task_name": getattr(self, 'task_name', None) or session.task.domain
         }
 
         try:
@@ -491,33 +524,48 @@ class OrchestrationAgent:
 
         feedback_content = self._extract_feedback_content(session, ideas)
 
-        tasks = []
-        for idea in ideas:
-            context = {
-                "goal": session.task.to_dict(),
-                "hypothesis": idea.to_dict(),
-                "iteration": current_iter,
-                "feedback": feedback_content if isinstance(feedback_content, str)
-                          else feedback_content.get('comment', '') if feedback_content.get("id") == idea.id else ""
-            }
-            tasks.append(reflection_agent.execute(context, {}))
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_TASKS)
 
-        try:
-            results = await asyncio.gather(*tasks)
-
-            for idx, idea in enumerate(ideas):
-                critiques = results[idx].get("critiques", [])
-                if idea.to_dict().get("method_details"):
-                    idea.method_critiques = critiques
+        async def reflect_one_idea(idea):
+            async with semaphore:
+                # feedback is filtered to match the idea
+                if isinstance(feedback_content, str):
+                    feedback = feedback_content
                 else:
-                    idea.critiques = critiques
+                    feedback = ""
+                    if feedback_content.get("id") == idea.id:
+                        feedback = feedback_content.get("comment", "")
 
-            logger.info(f"Assessment Agent: Completed reflection and critique for {len(ideas)} ideas in session {session.id}")
-            await self._update_session_state(session, WorkflowState.EXTERNAL_DATA)
+                context = {
+                    "goal": session.task.to_dict(),
+                    "hypothesis": idea.to_dict(),
+                    "iteration": current_iter,
+                    "feedback": feedback,
+                }
 
-        except Exception as e:
-            logger.error(f"Error in reflection phase: {str(e)}")
-            await self._update_session_state(session, WorkflowState.ERROR)
+                try:
+                    response = await reflection_agent.execute(context, {})
+                    return response.get("critiques", [])
+                except Exception as e:
+                    logger.exception(f"Error critiquing idea {idea.id}: {str(e)}")
+                    return []
+
+        # Create tasks
+        tasks = [asyncio.create_task(reflect_one_idea(idea)) for idea in ideas]
+
+        # Wait for all tasks
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+
+        # Assign critiques
+        for idx, idea in enumerate(ideas):
+            critiques = tasks[idx].result() if tasks[idx].exception() is None else []
+            if idea.to_dict().get("method_details"):
+                idea.method_critiques = critiques
+            else:
+                idea.critiques = critiques
+
+        logger.info(f"Assessment Agent: Completed reflection and critique for {len(ideas)} ideas in session {session.id}")
+        await self._update_session_state(session, WorkflowState.EXTERNAL_DATA)
 
     async def _run_external_data_phase(self, session: WorkflowSession) -> None:
         """
@@ -526,11 +574,8 @@ class OrchestrationAgent:
         Invokes scholar agent to retrieve supporting literature and evidence for current
         ideas. Uses semaphore for concurrency control. Attaches evidence and references
         to ideas. Transitions to refinement phase if in method phase, else evolution phase.
-
-        Args:
-            session (WorkflowSession): Session to process
         """
-        logger.info(f"Survey Agent: Starting literature gathering for session {session.id}")
+        logger.info(f"Scholar Agent: Starting literature gathering for session {session.id}")
 
         scholar_agent = self._get_agent("scholar")
         if not scholar_agent:
@@ -539,24 +584,31 @@ class OrchestrationAgent:
         current_iter = session.iterations_completed
         ideas = self._get_current_ideas(session, current_iter)
 
-        # Use semaphore for concurrency control
-        semaphore = asyncio.Semaphore(self.max_concurrent_tasks)
-        tasks = []
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_SEARCH_TASKS)
 
-        async def execute_with_semaphore(idea):
-            async with semaphore:
-                context = {
-                    "goal": session.task.to_dict(),
-                    "hypothesis": idea.to_dict(),
-                    "iteration": current_iter
-                }
-                return await scholar_agent.execute(context, {"method_phase": session.method_phase})
+        async def execute_with_semaphore(idx, idea):
+            try:
+                async with semaphore:
+                    context = {
+                        "goal": session.task.to_dict(),
+                        "hypothesis": idea.to_dict(),
+                        "iteration": current_iter
+                    }
+                    return await scholar_agent.execute(context, {"method_phase": session.method_phase})
+            except Exception as e:
+                logger.error(f"Idea {idx+1} failed: {e}")
+                raise
 
-        for idea in ideas:
-            tasks.append(execute_with_semaphore(idea))
+        # 创建任务
+        tasks = [
+            asyncio.create_task(execute_with_semaphore(idx, idea))
+            for idx, idea in enumerate(ideas)
+        ]
 
         try:
-            results = await asyncio.gather(*tasks)
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+
+            results = [t.result() for t in tasks]
 
             for idx, idea in enumerate(ideas):
                 if not session.method_phase:
@@ -566,7 +618,9 @@ class OrchestrationAgent:
                     idea.refine_evidence = results[idx].get("evidence", [])
 
             next_state = WorkflowState.REFINING if session.method_phase else WorkflowState.EVOLVING
-            logger.info(f"Survey Agent: Completed literature gathering for {len(ideas)} ideas in session {session.id}")
+            logger.info(
+                f"Scholar Agent: Completed literature gathering for {len(ideas)} ideas in session {session.id}"
+            )
             await self._update_session_state(session, next_state)
 
         except Exception as e:
@@ -593,37 +647,56 @@ class OrchestrationAgent:
         current_iter = session.iterations_completed
         ideas = self._get_current_ideas(session, current_iter)
 
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_TASKS)
+
+        async def evolve_one_idea(idea):
+            async with semaphore:
+                context = {
+                    "goal": session.task.to_dict(),
+                    "hypothesis": idea.to_dict(),
+                    "critiques": idea.critiques,
+                    "evidence": idea.evidence,
+                    "feedback": session.feedback_history,
+                    "iteration": current_iter
+                }
+
+                try:
+                    response = await evolution_agent.execute(context, {})
+                    evolutions = response.get("evolved_hypotheses", [])
+                    
+                    evolved_list = []
+                    for idx, evolution in enumerate(evolutions):
+                        evolved_idea = Idea(
+                            id=f"idea_{int(time.time())}_{idx}_{idea.id}",
+                            text=evolution.get("text", ""),
+                            rationale=evolution.get("rationale", ""),
+                            baseline_summary=idea.baseline_summary,
+                            iteration=current_iter + 1,
+                            parent_id=idea.id
+                        )
+                        evolved_list.append(evolved_idea)
+                    
+                    return evolved_list
+
+                except Exception as e:
+                    logger.exception(f"Error evolving idea {idea.id}: {str(e)}")
+                    return []  # 保证失败不会中断整个流程
+
+        tasks = [asyncio.create_task(evolve_one_idea(idea)) for idea in ideas]
+
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+
         evolved_ideas = []
-        for idea in ideas:
-            context = {
-                "goal": session.task.to_dict(),
-                "hypothesis": idea.to_dict(),
-                "critiques": idea.critiques,
-                "evidence": idea.evidence,
-                "feedback": session.feedback_history,
-                "iteration": current_iter
-            }
-
-            try:
-                response = await evolution_agent.execute(context, {})
-
-                evolutions = response.get("evolved_hypotheses", [])
-                for idx, evolution in enumerate(evolutions):
-                    evolved_idea = Idea(
-                        id=f"idea_{int(time.time())}_{idx}_{idea.id}",
-                        text=evolution.get("text", ""),
-                        rationale=evolution.get("rationale", ""),
-                        baseline_summary=idea.baseline_summary,
-                        iteration=current_iter + 1,
-                        parent_id=idea.id
-                    )
-                    evolved_ideas.append(evolved_idea)
-
-            except Exception as e:
-                logger.error(f"Error evolving idea {idea.id}: {str(e)}")
+        for t in tasks:
+            if t.exception() is None:
+                evolved_ideas.extend(t.result())
 
         session.ideas.extend(evolved_ideas)
-        logger.info(f"Idea Innovation Agent: Evolved {len(evolved_ideas)} ideas from {len(ideas)} parent ideas in session {session.id}")
+
+        logger.info(
+            f"Idea Innovation Agent: Evolved {len(evolved_ideas)} ideas from {len(ideas)} parent ideas in session {session.id}"
+        )
+
         await self._update_session_state(session, WorkflowState.RANKING)
 
     async def _run_ranking_phase(self, session: WorkflowSession) -> None:
@@ -711,7 +784,7 @@ class OrchestrationAgent:
         current_iter = session.iterations_completed
         ideas = self._get_current_ideas(session, current_iter)
 
-        # Filter to only process top ideas (after ranking phase)
+        # Filter to only process top ideas (after ranking)
         if session.top_ideas:
             ideas = [i for i in ideas if i.id in session.top_ideas]
             logger.info(f"Method Development Agent: Processing {len(ideas)} top ideas for session {session.id}")
@@ -721,8 +794,7 @@ class OrchestrationAgent:
         if scholar_agent:
             await self._gather_evidence_for_ideas(ideas, scholar_agent, session)
 
-        # Process method development with concurrency control
-        semaphore = asyncio.Semaphore(3)
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_TASKS)
         tasks = []
 
         async def develop_method(idea):
@@ -739,16 +811,23 @@ class OrchestrationAgent:
                     "iteration": session.iterations_completed,
                 }
 
-                return await method_dev_agent.execute(context, {})
+                return idea, await method_dev_agent.execute(context, {})
 
+        # Create tasks without awaiting
         for idea in ideas:
-            tasks.append((idea, develop_method(idea)))
+            tasks.append(asyncio.create_task(develop_method(idea)))
 
         try:
-            for idea, task in tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.error(f"Uncaught error during method development: {str(result)}")
+                    continue
+
+                idea, result_payload = result
                 try:
-                    result = await task
-                    method_details = result.get("method_details", {})
+                    method_details = result_payload.get("method_details", {})
 
                     idea.method_details = {
                         "name": method_details.get("name", idea.text[:20]),
@@ -758,19 +837,20 @@ class OrchestrationAgent:
                         "method": method_details.get("method", ""),
                     }
 
-                    logger.info(f"Method development completed for idea {idea.id} with method_details keys: {list(idea.method_details.keys())}")
+                    logger.info(
+                        f"Method development completed for idea {idea.id} with method_details keys: "
+                        f"{list(idea.method_details.keys())}"
+                    )
 
                 except Exception as e:
-                    logger.error(f"Error in method development for idea {idea.id}: {str(e)}")
-                    # Set fallback method details for failed method development
+                    logger.error(f"Error handling result for idea {idea.id}: {str(e)}")
                     idea.method_details = {
-                        "name": f"failed_{idea.text[:20] if idea.text else 'unnamed'}",
-                        "title": idea.text if idea.text else "Failed Method Development",
-                        "description": idea.text if idea.text else "Method development encountered an error",
+                        "name": f"failed_{idea.text[:20]}",
+                        "title": idea.text,
+                        "description": idea.text,
                         "statement": f"Method development failed: {str(e)}",
                         "method": "Method development failed - see statement for details",
                     }
-                    logger.info(f"Set fallback method_details for failed idea {idea.id}")
 
             logger.info(f"Method Development Agent: Developed methods for {len(ideas)} ideas in session {session.id}")
             await self._update_session_state(session, WorkflowState.REFLECTING)
@@ -796,7 +876,7 @@ class OrchestrationAgent:
         current_iter = session.iterations_completed
         ideas = self._get_current_ideas(session, current_iter)
 
-        # Filter to only process top ideas that went through method development
+        # Filter to only process top ideas
         if session.top_ideas:
             ideas = [i for i in ideas if i.id in session.top_ideas]
             logger.info(f"Method Development Agent: Processing {len(ideas)} top ideas for refinement in session {session.id}")
@@ -812,35 +892,76 @@ class OrchestrationAgent:
             await self._update_session_state(session, WorkflowState.COMPLETED)
             return
 
-        for idea in ideas:
-            try:
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_TASKS)  # limit concurrency
+        tasks = []
+
+        async def refine_idea(idea):
+            """
+            Refinement task executed under semaphore.
+            """
+            async with semaphore:
                 idea_dict = idea.to_dict()
                 method_details = idea_dict.get("method_details", {})
 
-                # Skip ideas without proper method details
+                # Skip invalid ideas early
                 if not method_details or not any(method_details.values()):
-                    logger.warning(f"Refinement Agent: Skipping idea {idea.id} - missing or empty method_details")
-                    continue
+                    logger.warning(
+                        f"Refinement Agent: Skipping idea {idea.id} - missing or empty method_details"
+                    )
+                    return idea, None, "invalid"
 
-                logger.info(f"Refinement Agent: Processing idea {idea.id} with method_details keys: {list(method_details.keys())}")
+                logger.info(
+                    f"Refinement Agent: Processing idea {idea.id} with method_details keys: "
+                    f"{list(method_details.keys())}"
+                )
 
-                refinement_result = await refinement_agent.execute({
-                    "goal": session.task.to_dict(),
-                    "hypothesis": idea_dict,
-                    "literature": idea.refine_evidence,
-                }, {})
+                try:
+                    refinement_result = await refinement_agent.execute({
+                        "goal": session.task.to_dict(),
+                        "hypothesis": idea_dict,
+                        "literature": idea.refine_evidence,
+                    }, {})
 
-                refined_method = refinement_result.get("refined_method", {})
-                if refined_method:
-                    idea.refined_method_details = refined_method
-                    logger.info(f"Updated idea {idea.id} with refined method")
-                else:
-                    logger.warning(f"No refined method produced for idea {idea.id}")
+                    refined_method = refinement_result.get("refined_method", {})
+                    return idea, refined_method, None
 
-            except Exception as e:
-                logger.error(f"Error in refinement phase for idea {idea.id}: {str(e)}")
+                except Exception as e:
+                    return idea, None, e
 
-        logger.info(f"Method Development Agent: Completed method refinement for {len(ideas)} ideas in session {session.id}")
+        # schedule all tasks
+        for idea in ideas:
+            tasks.append(asyncio.create_task(refine_idea(idea)))
+
+        # wait for all tasks
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # process results
+        for result in results:
+            # unexpected top-level exception
+            if isinstance(result, Exception):
+                logger.error(f"Uncaught refinement task error: {result}")
+                continue
+
+            idea, refined_method, error = result
+
+            if error == "invalid":
+                # already logged, skip
+                continue
+
+            if isinstance(error, Exception):
+                logger.error(f"Error in refinement phase for idea {idea.id}: {error}")
+                continue
+
+            # success
+            if refined_method:
+                idea.refined_method_details = refined_method
+                logger.info(f"Updated idea {idea.id} with refined method")
+            else:
+                logger.warning(f"No refined method produced for idea {idea.id}")
+
+        logger.info(
+            f"Method Development Agent: Completed method refinement for {len(ideas)} ideas in session {session.id}"
+        )
         await self._update_session_state(session, WorkflowState.COMPLETED)
 
     async def _run_awaiting_feedback_phase(self, session: WorkflowSession) -> None:

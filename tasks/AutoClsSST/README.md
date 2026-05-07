@@ -21,18 +21,57 @@ unzip SST-2.zip
 
 ### Directory Structure
 
-Place the extracted data under `/datasets/SST-2`, following this structure:
+Place the extracted data under `datasets/SST-2` inside the task directory, following this structure:
 
 ```
-/datasets/
-└── SST-2/
-    ├── train.tsv
-    ├── train_small.tsv
-    ├── dev.tsv
-    └── test.tsv
+tasks/AutoClsSST/
+└── datasets/
+    └── SST-2/
+        ├── train.tsv
+        ├── train_small.tsv
+        ├── dev.tsv
+        └── test.tsv
 ```
 
 Each `.tsv` file is tab-separated with two columns: `similarity` (label) and `s1` (text).
+
+---
+
+## Model Checkpoint
+
+This task uses `bert-base-uncased` as the pretrained backbone.
+
+### Download
+
+If HuggingFace is reachable:
+```bash
+huggingface-cli download bert-base-uncased --local-dir hug_ckpts/BERT_ckpt
+```
+
+If not (e.g. on a restricted network), use the mirror:
+```bash
+HF_ENDPOINT=https://hf-mirror.com huggingface-cli download bert-base-uncased --local-dir hug_ckpts/BERT_ckpt
+```
+
+Or via ModelScope:
+```bash
+pip install modelscope
+modelscope download --model google-bert/bert-base-uncased --local_dir hug_ckpts/BERT_ckpt
+```
+
+### Directory Structure
+
+The downloaded checkpoint should be placed at:
+
+```
+tasks/AutoClsSST/
+└── hug_ckpts/
+    └── BERT_ckpt/
+        ├── config.json
+        ├── tokenizer_config.json
+        ├── vocab.txt
+        └── model.safetensors   (or pytorch_model.bin)
+```
 
 ---
 

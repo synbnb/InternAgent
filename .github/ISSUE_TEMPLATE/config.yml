@@ -1,5 +1,0 @@
-blank_issues_enabled: true
-contact_links:
-  - name: Support for private code/data optimization (please contact via email)
-    url: mailto:interndiscovery@pjlab.org.cn
-    about: Requests related to private code/data are not handled through Issues in this repository. Please contact us via email.

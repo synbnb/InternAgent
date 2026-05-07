@@ -71,8 +71,6 @@ instance/
 
 # Sphinx documentation
 docs/_build/
-# GitHub Pages 使用 anon key，可公开，已提交 docs/config.js
-# docs/config.js
 
 # PyBuilder
 .pybuilder/
@@ -182,3 +180,16 @@ datasets
 demo*/
 
 logs/
+traj*
+tasks/AutoScale_DL/*
+tasks/AutoScale2/*
+IA15_traj/
+mem_store/
+
+# Large data files
+tasks/AutoEAP/code/data/Sequences_activity_all.txt
+tasks/AutoTTS/code/experiment/data/
+tasks/AutoTTS/run_0/code/experiment/data/
+
+# Internal doc
+docs/README.md

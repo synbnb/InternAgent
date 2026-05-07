@@ -1,0 +1,284 @@
+import asyncio
+import os
+import time
+import argparse
+from dataclasses import dataclass
+from typing import Dict, List, Any, Tuple
+from tqdm.asyncio import tqdm
+
+from experiment.dataset import load_data
+from experiment.module import set_module, atom, plugin
+from experiment.utils import (
+    duration_formatter,
+    load_json,
+    save_json,
+    get_next_log_file,
+    get_file_count,
+)
+from llm import get_token, get_call_count, set_model
+import json 
+
+# Configuration constants
+LOG_DIR = "log/{dataset}/{size}"
+
+# Dataset configuration
+@dataclass
+class DatasetConfig:
+    question_key: str
+    answer_key: str
+    module_type: str
+    scoring_function: str
+    
+    def requires_context(self) -> bool:
+        return self.module_type == "multi-hop"
+
+# Dataset configuration mapping
+DATASET_CONFIGS = {
+    "gsm8k": DatasetConfig(question_key="question", answer_key="answer", 
+                          module_type="math", scoring_function="score_math"),
+    "math": DatasetConfig(question_key="problem", answer_key="solution", 
+                         module_type="math", scoring_function="score_math"),
+    "bbh": DatasetConfig(question_key="input", answer_key="target", 
+                        module_type="multi-choice", scoring_function="score_mc"),
+    "mmlu": DatasetConfig(question_key=["Question", "A", "B", "C", "D"], answer_key="Answer", 
+                         module_type="multi-choice", scoring_function="score_mc"),
+    "hotpotqa": DatasetConfig(question_key="question", answer_key="answer", 
+                             module_type="multi-hop", scoring_function="score_mh"),
+    "longbench": DatasetConfig(question_key="input", answer_key="answers", 
+                              module_type="multi-hop", scoring_function="score_mh"),
+}
+
+
+class ExperimentRunner:
+    def __init__(self, dataset: str, model: str, start: int = 0, end: int = -1, mode: str = "atom", max_concurrent: int = 10):
+        # Initialize experiment runner
+        self.dataset = dataset
+        self.start = start
+        self.end = None if end == -1 else end
+        self.interval = "full" if self.end is None else f"{start}-{end}"
+        self.timestamp = time.time()
+        self.mode = mode
+        self.max_concurrent = max_concurrent  # Maximum concurrent tasks
+        # Validate dataset support
+        if dataset not in DATASET_CONFIGS:
+            raise ValueError(f"Unsupported dataset: {dataset}")
+
+        self.config = DATASET_CONFIGS[dataset]
+        set_model(model)
+    
+    async def gather_results(self, testset: List[Dict[str, Any]]) -> List[Any]:
+        # Collect experiment results with concurrency limit
+        set_module(self.config.module_type)
+
+        question_key = self.config.question_key
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+
+        async def limited_atom(question, context=None):
+            async with semaphore:
+                if context is not None:
+                    return await atom(question, context)
+                else:
+                    return await atom(question)
+
+        tasks = []
+
+        if self.config.requires_context():
+            from experiment.prompter.multihop import contexts
+            # Handle case where question_key is a list
+            if isinstance(question_key, list):
+                formatted_questions = [self._format_question_from_keys(item, question_key) for item in testset]
+                tasks = [limited_atom(question, contexts(item, self.dataset))
+                         for question, item in zip(formatted_questions, testset)]
+            else:
+                tasks = [limited_atom(item[question_key], contexts(item, self.dataset)) for item in testset]
+        else:
+            # Handle case where question_key is a list
+            if isinstance(question_key, list):
+                tasks = [limited_atom(self._format_question_from_keys(item, question_key)) for item in testset]
+            else:
+                tasks = [limited_atom(item[question_key]) for item in testset]
+
+        return await tqdm.gather(*tasks, desc=f"Processing {self.dataset} tasks")
+    
+    def _format_question_from_keys(self, item: Dict[str, Any], keys: List[str]) -> str:
+        # When question_key is a list, concatenate values from multiple keys into a single question
+        parts = []
+        for key in keys:
+            if key in item:
+                parts.append(f"{key}: {item[key]}")
+        return "\n".join(parts)
+    
+    def construct_entry(self, result: Tuple[Dict[str, Any], Any], data: Dict[str, Any]) -> Dict[str, Any]:
+        # Construct result entry
+        result_data, log = result
+        question_key = self.config.question_key
+        answer_key = self.config.answer_key
+        
+        # Handle case where question_key is a list
+        if isinstance(question_key, list):
+            question = self._format_question_from_keys(data, question_key)
+        else:
+            question = data[question_key]
+            
+        groundtruth = data[answer_key]
+        
+        entry = {
+            "problem": question,
+            "groundtruth": groundtruth,
+            "response": result_data.get("response"),
+            "answer": result_data.get("answer"),
+            "log": log
+        }
+        
+        # Dynamically import scoring function
+        scoring_function = getattr(__import__(f"experiment.utils", fromlist=[self.config.scoring_function]), 
+                                  self.config.scoring_function)
+        
+        # Pass different parameters based on scoring function
+        if self.config.scoring_function == "score_math":
+            entry["score"] = scoring_function(entry["answer"], groundtruth, self.dataset)
+        else:
+            entry["score"] = scoring_function(entry["answer"], groundtruth)
+        return entry
+    
+    def save_final_info(self, accuracy: float) -> None:
+        final_info_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "final_info.json")
+
+        final_info = {
+            self.dataset: {
+                "means": {
+                    "accuracy": accuracy,
+                    "prompt_tokens": get_token()[0],
+                    "completion_tokens": get_token()[1],
+                    "total_calls": get_call_count(),
+                }
+            }
+        }
+
+        with open(final_info_path, "w") as f:
+            json.dump(final_info, f, indent=4)
+
+        print(f"Results saved to {final_info_path}")
+    
+    async def run(self) -> float:
+        # Run experiment and return accuracy
+        print(f"Running {self.mode} experiment on {self.dataset} dataset from index {self.start} to {self.end}")
+
+        # Load test set
+        testset = load_data(self.dataset, "test")[self.start:self.end]
+        results = await self.gather_results(testset)
+
+        # Build results
+        json_obj = [self.construct_entry(result, data) for result, data in zip(results, testset)]
+        accuracy = sum(entry["score"] for entry in json_obj) / len(json_obj)
+
+        # Save detailed results
+        detailed_log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "detailed_results.json")
+        save_json(detailed_log_file, json_obj)
+        print(f"Detailed results saved to {detailed_log_file}")
+
+        # Save final_info.json
+        self.save_final_info(accuracy)
+
+        # Print result summary
+        print(f"Unsolved: {round((1-accuracy) * len(json_obj))}")
+        print(f"Accuracy: {accuracy:.4f}")
+        print(f"Time taken: {duration_formatter(time.time() - self.timestamp)}")
+
+        return accuracy
+
+
+async def optimize_dataset(dataset: str, model: str, start: int = 0, end: int = -1):
+    # Optimize dataset questions and save to new file
+    print(f"Optimizing {dataset} dataset questions from index {start} to {end}")
+    timestamp = time.time()
+    
+    # Set model and module
+    set_model(model)
+    config = DATASET_CONFIGS[dataset]
+    set_module(config.module_type)
+    
+    # Load test set
+    testset = load_data(dataset, "test")[start:None if end == -1 else end]
+    question_key = config.question_key
+    if isinstance(question_key, list):
+        question_key = question_key[0]
+    
+    # Create tasks
+    async def process_item(item):
+        try:
+            if config.requires_context():
+                from experiment.prompter.multihop import contexts
+                optimized_question = await plugin(item[question_key], contexts(item, dataset))
+            else:
+                optimized_question = await plugin(item[question_key])
+                
+            # Create new entry
+            new_item = item.copy()
+            new_item["original_question"] = item[question_key]
+            new_item[question_key] = optimized_question
+            return new_item
+        except Exception as e:
+            print(f"Error processing item: {e}")
+            return item  # Return original item on error
+    
+    # Process all items in parallel
+    tasks = [process_item(item) for item in testset]
+    optimized_data = await tqdm.gather(*tasks, desc=f"Optimizing {dataset} questions")
+    
+    # Ensure output directory exists
+    os.makedirs(f"experiment/data/{dataset}", exist_ok=True)
+    
+    # Save optimized dataset
+    output_path = f"experiment/data/{dataset}/contracted.json"
+    save_json(output_path, optimized_data)
+    
+    elapsed_time = time.time() - timestamp
+    print(f"Optimized dataset saved to {output_path}")
+    print(f"Time taken: {duration_formatter(elapsed_time)}")
+    
+    return optimized_data
+
+async def main():
+    # Main function
+    parser = argparse.ArgumentParser(description='Run experiments on various datasets')
+    parser.add_argument('--dataset', type=str, default='math',
+                        choices=list(DATASET_CONFIGS.keys()),
+                        help='Dataset to run experiment on')
+    parser.add_argument('--start', type=int, default=0,
+                        help='Start index of the dataset')
+    parser.add_argument('--end', type=int, default=2,
+                        help='End index of the dataset (-1 for all)')
+    parser.add_argument('--model', type=str, default='gpt-4o-mini',
+                        help='Model to use for the experiment')
+    parser.add_argument('--mode', type=str, choices=['atom', 'plugin'], default='atom',
+                        help='Mode: atom (standard experiment) or plugin (generate contracted dataset)')
+    parser.add_argument('--max_concurrent', type=int, default=1000,
+                        help='Maximum number of concurrent tasks (default: 50)')
+
+    args = parser.parse_args()
+
+    if args.mode == 'plugin':
+        # Run plugin mode
+        await optimize_dataset(
+            dataset=args.dataset,
+            model=args.model,
+            start=args.start,
+            end=args.end
+        )
+    elif args.mode == 'atom':
+        # Run standard experiment
+        runner = ExperimentRunner(
+            dataset=args.dataset,
+            model=args.model,
+            start=args.start,
+            end=args.end,
+            mode=args.mode,
+            max_concurrent=args.max_concurrent
+        )
+        await runner.run()
+    else:
+        raise ValueError(f"Invalid mode: {args.mode}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

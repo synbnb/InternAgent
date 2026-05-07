@@ -1,0 +1,10 @@
+{
+    "mmlu": {
+        "means": {
+            "accuracy": 0.708,
+            "prompt_tokens": 6480571,
+            "completion_tokens": 2567481,
+            "total_calls": 9095
+        }
+    }
+}

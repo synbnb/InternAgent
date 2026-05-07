@@ -17,6 +17,7 @@ from .agents.agent_factory import AgentFactory
 from .memory.memory_manager import MemoryManager
 from .workflow.orchestration_agent import OrchestrationAgent
 from .workflow.data_type import WorkflowState
+from .tools import get_registry, init_mcp_tools, cleanup_mcp, init_tools
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class InternAgentInterface:
     It serves as the primary entry point for external applications.
     """
 
-    def __init__(self, config_path: str = None, config: Dict[str, Any] = None, work_dir: str = 'example', task_name: str = None):
+    def __init__(self, config_path: str = None, config: Dict[str, Any] = None, work_dir: str = 'example', task_name: str = None, exp_backend: str = None):
         """
         Initialize the InternAgent interface.
 
@@ -39,6 +40,7 @@ class InternAgentInterface:
             config: Configuration dictionary (takes precedence over config_path)
             work_dir: Working directory for the system
             task_name: Name of the task (from --task parameter)
+            exp_backend: Experiment backend to use (claudecode, iflow)
         """
         self.work_dir = work_dir
         self.task_name = task_name or "DefaultTask"
@@ -46,11 +48,25 @@ class InternAgentInterface:
         self.config['config_path'] = config_path
         self.config['work_dir'] = self.work_dir
         self.config['task_name'] = self.task_name
+        # Store exp_backend in config so agents can access it
+        if exp_backend:
+            self.config['exp_backend'] = exp_backend
 
         # Core components
         self.model_factory = ModelFactory()
         self.memory_manager = self._init_memory_manager()
         self.agent_factory = AgentFactory()
+
+        # Store tools configuration for later initialization
+        self.sci_tools = self.config.get("sci_tools", {})
+
+        # Initialize local function-based tools if enabled (synchronous)
+        if self.sci_tools.get("local", True):  # Default to True for backward compatibility
+            logger.info("Loading local function-based tools...")
+            init_tools()
+            logger.info("Local tools initialized")
+        else:
+            logger.info("Local tools disabled by configuration")
 
         # Create specialized agents
         self.agents = self.agent_factory.create_all_agents(
@@ -72,6 +88,20 @@ class InternAgentInterface:
     async def startup(self) -> None:
         """Initialize system components and mark as ready."""
         try:
+            # Initialize remote MCP tools if configured (asynchronous)
+            if self.sci_tools.get("remote", None):
+                logger.info(f"Found {len(self.sci_tools['remote'])} remote MCP server(s) in config:")
+                for tool in self.sci_tools['remote']:
+                    logger.info(f"  - {tool['id']}: {tool['url']}")
+                await init_mcp_tools(remote_servers=self.sci_tools['remote'])
+
+            # Log total tools registered
+            tools_registry = get_registry()
+            logger.info(f"  - Tool names: {tools_registry.get_all_names()}")
+            logger.info(f"  - Function tools: {len(tools_registry)}")
+            logger.info(f"  - MCP tools: {tools_registry.total_tool_count() - len(tools_registry)}")
+            logger.info(f"Total tools registered: {tools_registry.total_tool_count()}")
+
             await self.memory_manager.startup()
             self.system_ready = True
             logger.info("InternAgent system started successfully")
@@ -83,6 +113,9 @@ class InternAgentInterface:
     async def shutdown(self) -> None:
         """Clean shutdown of system components."""
         try:
+            # Cleanup MCP connections if initialized
+            await cleanup_mcp()
+
             if hasattr(self.memory_manager, 'shutdown'):
                 await self.memory_manager.shutdown()
             self.system_ready = False

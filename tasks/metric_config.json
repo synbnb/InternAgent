@@ -1,0 +1,45 @@
+{
+    "sentiment": {
+      "best_acc": true
+    },
+    "cifar100": {
+        "best_acc": true
+        },
+
+    "modelnet40": {
+      "best_oa": true
+    },
+    "IEEE39": {
+      "val/PQ_Vm_rmse": false
+    },
+    "Chemical prediction": {
+      "r2_score": true
+    },
+    "AutoMolecule3D":{
+      "Forces MAE": false
+    },
+    "once": {
+      "mAP": true
+    },
+    "voc12_aug": {
+      "mIoU": true
+    },
+    "Gears": {
+      "Test Top 20 DE MSE": true
+    },
+    "Geometry QA":{
+      "Accuracy": true
+    },
+    "Function QA": {
+      "Accuracy":true
+    },
+    "longbench":{
+      "accuracy": true
+    },
+    "mmlu":{
+      "accuracy": true
+    },
+    "AutoScale":{
+      "RMSE": false
+    }
+}

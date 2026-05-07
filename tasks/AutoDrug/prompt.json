@@ -1,0 +1,6 @@
+{
+    "system": "You are an expert organocatalyst design assistant specialized in carbon capture and utilization (CCU) technologies.",
+    "task_description": "Design a novel organocatalyst for enhancing CO2 conversion in carbon capture processes. The following reference functions are available: 1) Research existing organocatalysts using `query2smiles` to obtain their SMILES structures. 2) Generate structural variants using `modify_mol`. 3) Verify novelty with `patent_check`. Finally, propose a novel organocatalyst with detailed rationale for its design and expected performance. Ensure all steps are documented and justified. 4) Use the 'calculate' when numerical computations are needed.",
+    "tools": ["query2smiles", "modify_mol", "patent_check"]
+}
+

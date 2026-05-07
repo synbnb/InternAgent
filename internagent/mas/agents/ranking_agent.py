@@ -155,9 +155,11 @@ class RankingAgent(BaseAgent):
                             },
                             "criteria_scores": {
                                 "type": "object",
-                                "description": "Scores for individual criteria (0.0-10.0)",
+                                "description": "Scores for individual criteria (0.0-10.0). Each key is a criterion name and value is the score.",
                                 "additionalProperties": {
-                                    "type": "number"
+                                    "type": "number",
+                                    "minimum": 0.0,
+                                    "maximum": 10.0
                                 }
                             },
                             "scoring_rationale": {
@@ -193,7 +195,15 @@ class RankingAgent(BaseAgent):
             scoring_explanation = ""
             logger.info(f"Ranking {len(hypotheses)} hypotheses in {len(batches)} batches")
             # Iterate over batches
-            for batch in tqdm(batches, desc="Ranking hypotheses", unit="batch"):
+            # Use tqdm with file parameter to avoid "I/O operation on closed file" errors
+            try:
+                import sys
+                progress_batches = tqdm(batches, desc="Ranking hypotheses", unit="batch", file=sys.stdout)
+            except Exception:
+                # If tqdm fails, fall back to plain iteration
+                progress_batches = batches
+
+            for batch in progress_batches:
                 # Extract the current batch of hypotheses
                 batch_hypotheses = batch
                 # Build the prompt
@@ -210,11 +220,28 @@ class RankingAgent(BaseAgent):
                     system_prompt=system_prompt,
                     schema=output_schema
                 )
+
                 batch_scored_hypotheses = response.get("scored_hypotheses", [])
-                if len(batch_scored_hypotheses) != len(batch_hypotheses):
-                    logger.warning(f"Expected {len(batch_hypotheses)} scored hypotheses, but got {len(batch_scored_hypotheses)}")
-                # Process the response
-                scored_hypotheses.extend(batch_scored_hypotheses)
+
+                # Handle case where model returns JSON string instead of list
+                if isinstance(batch_scored_hypotheses, str):
+                    import json
+                    try:
+                        batch_scored_hypotheses = json.loads(batch_scored_hypotheses)
+                    except json.JSONDecodeError:
+                        logger.error("Model returned invalid JSON string for scored_hypotheses")
+                        raise AgentExecutionError("Model returned invalid JSON string")
+
+                # Validate and filter scored hypotheses
+                valid_hypotheses = []
+                for hyp in batch_scored_hypotheses:
+                    if isinstance(hyp, dict) and all(k in hyp for k in ["id", "overall_score", "criteria_scores", "scoring_rationale"]):
+                        valid_hypotheses.append(hyp)
+
+                if len(valid_hypotheses) != len(batch_hypotheses):
+                    logger.warning(f"Expected {len(batch_hypotheses)} scored hypotheses, but got {len(valid_hypotheses)}")
+
+                scored_hypotheses.extend(valid_hypotheses)
                 # Merge the scoring explanation
                 scoring_explanation += response.get("scoring_explanation", "")
                 # Merge the scored hypotheses

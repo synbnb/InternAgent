@@ -1,0 +1,116 @@
+{
+    "locomo10": {
+        "exact_match": {
+            "mean": 0.0972,
+            "std": 0.2963,
+            "median": 0.0,
+            "min": 0,
+            "max": 1,
+            "count": 1986.0
+        },
+        "f1": {
+            "mean": 0.2338,
+            "std": 0.3452,
+            "median": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "count": 1986.0
+        },
+        "rouge1_f": {
+            "mean": 0.2423,
+            "std": 0.3476,
+            "median": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "count": 1986.0
+        },
+        "rouge2_f": {
+            "mean": 0.1438,
+            "std": 0.3061,
+            "median": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "count": 1986.0
+        },
+        "rougeL_f": {
+            "mean": 0.237,
+            "std": 0.3443,
+            "median": 0.0,
+            "min": 0,
+            "max": 1.0,
+            "count": 1986.0
+        },
+        "bleu1": {
+            "mean": 0.1964,
+            "std": 0.3237,
+            "median": 0.0,
+            "min": 0,
+            "max": 1.0,
+            "count": 1986.0
+        },
+        "bleu2": {
+            "mean": 0.1499,
+            "std": 0.2873,
+            "median": 0.0,
+            "min": 0,
+            "max": 1.0,
+            "count": 1986.0
+        },
+        "bleu3": {
+            "mean": 0.1192,
+            "std": 0.2513,
+            "median": 0.0,
+            "min": 0,
+            "max": 1.0,
+            "count": 1986.0
+        },
+        "bleu4": {
+            "mean": 0.0961,
+            "std": 0.2155,
+            "median": 0.0,
+            "min": 0,
+            "max": 1.0,
+            "count": 1986.0
+        },
+        "bert_precision": {
+            "mean": 0.8859,
+            "std": 0.0577,
+            "median": 0.8715,
+            "min": 0.6716,
+            "max": 1.0,
+            "count": 1978.0
+        },
+        "bert_recall": {
+            "mean": 0.8723,
+            "std": 0.0693,
+            "median": 0.8588,
+            "min": 0.6976,
+            "max": 1.0,
+            "count": 1978.0
+        },
+        "bert_f1": {
+            "mean": 0.8749,
+            "std": 0.0818,
+            "median": 0.8624,
+            "min": 0.0,
+            "max": 1.0,
+            "count": 1986.0
+        },
+        "meteor": {
+            "mean": 0.1946,
+            "std": 0.3159,
+            "median": 0.0,
+            "min": 0.0,
+            "max": 0.9997,
+            "count": 1986.0
+        },
+        "sbert_similarity": {
+            "mean": 0.391,
+            "std": 0.3306,
+            "median": 0.2662,
+            "min": -0.1236,
+            "max": 1.0,
+            "count": 1986.0
+        }
+    }
+}

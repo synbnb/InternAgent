@@ -7,6 +7,8 @@ tools and databases to gather evidence relevant to research hypotheses.
 
 import logging
 import os
+import asyncio
+from time import time
 from typing import Dict, Any, List, Tuple
 
 from .base_agent import BaseAgent, AgentExecutionError
@@ -39,7 +41,7 @@ class ScholarAgent(BaseAgent):
         self.max_papers = config.get("max_papers", 5)
         self.search_depth = config.get("search_depth", "moderate")  # shallow, moderate, deep
         self.evidence_threshold = config.get("evidence_threshold", 0.6)  # Minimum relevance score
-        self.sources = config.get("sources", ["pubmed", "arxiv", "semantic_scholar"])
+        self.sources = config.get("sources", ["arxiv", "crossref"])
         
         # Initialize tools
         tools_config = config.get("_global_config", {}).get("tools", {})
@@ -55,13 +57,9 @@ class ScholarAgent(BaseAgent):
         Args:
             config: Literature search configuration
         """
-        email = config.get("email", "researcher@example.com")
-        api_keys = config.get("api_keys", {})
-        
         try:
             self.literature_search = LiteratureSearch(
-                email=email,
-                api_keys=api_keys
+                config=config
             )
             logger.info("Literature search tool initialized successfully")
         except Exception as e:
@@ -111,7 +109,7 @@ class ScholarAgent(BaseAgent):
             search_depth=search_depth,
             feedback=feedback
         )
-        
+
         # Gather evidence from literature
         evidence, references = await self._gather_literature_evidence(
             search_queries=search_queries,
@@ -337,7 +335,21 @@ Guidelines:
             logger.error(f"Error generating search queries: {str(e)}")
             # Fallback
             return [hypothesis_text]
-    
+
+    async def _run_single_query(self, query, idx, max_papers):
+        try:
+            results = await self.literature_search.multi_source_search(
+                query=query,
+                sources=self.sources,
+                max_results=int(max_papers / len(self.sources)) + 2
+            )
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Error searching: {query} | {str(e)}")
+            return {}
+
     async def _gather_literature_evidence(self,
                                        search_queries: List[str],
                                        hypothesis: Dict[str, Any],
@@ -363,26 +375,24 @@ Guidelines:
             return evidence, references
         
         try:
-            # Gather papers from multiple sources
             all_papers = []
-            
-            # Execute each query
-            for query in search_queries:
-                try:
-                    # Search across multiple sources
-                    results = await self.literature_search.multi_source_search(
-                        query=query,
-                        sources=self.sources,
-                        max_results=max_papers
-                    )
-                    
-                    # Extract papers from results
-                    for source, papers in results.items():
-                        all_papers.extend(papers)
-                        
-                except Exception as e:
-                    logger.error(f"Error searching with query '{query}': {str(e)}")
-            
+            start_time = time()
+
+            tasks = [
+                asyncio.create_task(
+                    self._run_single_query(q, idx, max_papers)
+                )
+                for idx, q in enumerate(search_queries)
+            ]
+
+            results_list = await asyncio.gather(*tasks)
+
+            for results in results_list:
+                for source, papers in results.items():
+                    all_papers.extend(papers)
+
+            logger.info(f"Completed paper search in {time() - start_time:.2f}s for idea: {hypothesis.get('id','')}")
+
             # Remove duplicates (by DOI or title)
             unique_papers = []
             seen_dois = set()
@@ -436,7 +446,7 @@ Guidelines:
                         "title": paper.title,
                         "authors": ", ".join(paper.authors[:3]) + ("..." if len(paper.authors) > 3 else ""),
                         "year": paper.year or "Unknown",
-                        "content": paper.abstract,  # paper.abstract[:300] + "..." if len(paper.abstract) > 300 else paper.abstract
+                        "content": paper.content if paper.content else paper.abstract, 
                         "relevance": relevance_note,
                         "relevance_score": relevance_score,
                         "url": paper.url or "",
@@ -714,28 +724,37 @@ To complete this core task, You are responsible for analyzing the **Methodologic
 {input_paper}
 
 """
-        if not paper.url:
-            return "No PDF URL available for methodology extraction"
-        try:   
-            base_dir = 'tmp'
-            if paper.url:
-                pdf_dir = os.path.join(base_dir, "pdf")
-                if not os.path.exists(pdf_dir):
-                    os.makedirs(pdf_dir)
-            if "arxiv" in paper.url:
-                url = paper.url.replace("abs", "pdf")
-            else:
-                url = paper.url
-            pdf_path = download_pdf(url, save_folder=pdf_dir)
+        try:
+            if paper.content:
+                input_paper = paper.content
+                response = await self._call_model(
+                    prompt = methodology_prompt.format(input_paper=input_paper)
+                )
+                return response
+            elif paper.url or paper.doi:
+                logger.info(f"Downloading PDF for paper: {paper.title}")
+                base_dir = 'tmp'
+                if paper.url:
+                    pdf_dir = os.path.join(base_dir, "pdf")
+                    if not os.path.exists(pdf_dir):
+                        os.makedirs(pdf_dir)
+                if "arxiv" in paper.url:
+                    url = paper.url.replace("abs", "pdf")
+                else:
+                    url = paper.url
+                pdf_path = download_pdf(url, save_folder=pdf_dir)
 
-            if pdf_path is None and paper.doi:
-                pdf_path = download_pdf_by_doi(paper.doi, pdf_dir)
-            
-            text = extract_text_from_pdf(pdf_path)
-            input_paper = text
-            response = await self._call_model(
-                prompt = methodology_prompt.format(input_paper=input_paper)
-            )
+                if pdf_path is None and paper.doi:
+                    pdf_path = download_pdf_by_doi(paper.doi, pdf_dir)
+                
+                text = extract_text_from_pdf(pdf_path)
+                input_paper = text
+                response = await self._call_model(
+                    prompt = methodology_prompt.format(input_paper=input_paper)
+                )
+            else:
+                logger.warning(f"No content or URL/DOI available to extract method for paper: {paper.title}")
+                return "No content available for methodology analysis."
 
         except Exception as e:
             logger.error(f"Method extraction failed for {paper.title}: {str(e)}")
