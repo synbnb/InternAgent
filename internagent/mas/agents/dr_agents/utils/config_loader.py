@@ -60,7 +60,7 @@ def get_default_config() -> Dict[str, Any]:
     """
     return {
         'model': {
-            'default_model': 'o4-mini',
+            'default_model': 'deepseek-v4-pro',
             'global_planner_model': None,
             'global_execution_model': None,
             'coordinator_model': None,

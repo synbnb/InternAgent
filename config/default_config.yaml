@@ -12,7 +12,7 @@ models:
   default_provider: "openai"
 
   openai:
-    model_name: "gpt-4o"
+    model_name: "deepseek-v4-pro"
     api_key: ""  # Set via environment variable OPENAI_API_KEY
     temperature: 0.7
 
@@ -155,25 +155,25 @@ agents:
 
 # Workflow Configuration
 workflow:
-  max_iterations: 4
-  top_ideas_count: 5
+  max_iterations: 2
+  top_ideas_count: 2
   top_ideas_evo: true
-  max_concurrent_tasks: 5
-  loop_rounds: 10  # Maximum number of full discovery rounds (generate ideas -> run experiments -> update memory -> repeat)
+  max_concurrent_tasks: 2
+  loop_rounds: 1  # Maximum number of full discovery rounds (generate ideas -> run experiments -> update memory -> repeat)
   loop_mode: "incremental"  # Loop mode: 'fresh' (each round from baseline) or 'incremental' (each round from best result)
 
 # Sci Task Configuration (paper reproduction tasks)
 sci_task:
-  scorer_model: "gpt-5.1"          # LLM-as-judge model for checklist scoring (aligned with ResearchClawBench default)
+  scorer_model: "deepseek-v4-pro"          # LLM-as-judge model for checklist scoring (aligned with ResearchClawBench default)
   evaluation_mode: "llm_judge"    # Evaluation mode (llm_judge or none)
   default_launcher: "python code/experiment.py"  # Default launcher.sh command
 
 # Experiment Configuration
 experiment:
-  model: "claude-sonnet-4-5-20250929"
+  model: "glm-5"
   use_mcts: false
-  max_runs: 2  # Maximum number of experiment runs (run_0 is baseline, run_1 to run_N are improved versions)
+  max_runs: 1  # Maximum number of experiment runs (run_0 is baseline, run_1 to run_N are improved versions)
   # Parallel execution configuration
-  max_parallel_experiments: 4  # Maximum number of experiments to run in parallel
+  max_parallel_experiments: 1  # Limited to 1 for GPU 4 only
   gpu_per_experiment: 1.0  # GPU allocation per experiment (supports fractional values like 0.25)
   # Actual parallel count = min(max_parallel_experiments, available_gpus / gpu_per_experiment)

@@ -193,3 +193,4 @@ tasks/AutoTTS/run_0/code/experiment/data/
 
 # Internal doc
 docs/README.md
+*.pdf

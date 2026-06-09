@@ -51,7 +51,7 @@ class Workflow(BaseAgent):
         
         # 获取模型配置
         model_config = self.config.get('model', {})
-        default_model = model_config.get('default_model', 'o4-mini')
+        default_model = model_config.get('default_model', 'deepseek-v4-pro')
         
         # 处理 global_execution_model 配置（可能是字典或字符串）
         execution_model_config = model_config.get('global_execution_model')
@@ -84,7 +84,7 @@ class Workflow(BaseAgent):
         )
         
         # 初始化用于查询分析的模型实例
-        self.analysis_model = get_model('o4-mini')
+        self.analysis_model = get_model('deepseek-v4-pro')
     
     def _save_synthesizer_input(self, task: str, synthesizer_input: dict, task_id: str = None, timestamp: str = None):
         """

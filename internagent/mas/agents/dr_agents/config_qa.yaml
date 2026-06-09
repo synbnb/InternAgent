@@ -1,7 +1,7 @@
 # DR Agent config: QA mode — single-stage synthesis, concise answer
 
 model:
-  default_model: "o4-mini"
+  default_model: "deepseek-v4-pro"
   global_planner_model: null
   global_execution_model: null
   coordinator_model: null

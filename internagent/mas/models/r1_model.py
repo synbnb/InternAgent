@@ -111,12 +111,22 @@ class R1Model(BaseModel):
             )
             
             response_text = response.choices[0].message.content
-            think_text, answer_text = response_text.split("</think>\n\n", 1)
-            return answer_text
+
+            # Handle DeepSeek R1 thinking format with robust parsing
+            if "</think" + ">" + "\n\n" in response_text:
+                think_text, answer_text = response_text.split("</think" + ">" + "\n\n", 1)
+                return answer_text.strip()
+            elif "</think" + ">" in response_text:
+                # Handle alternative format
+                parts = response_text.split("</think" + ">", 1)
+                if len(parts) == 2:
+                    return parts[1].strip()
+
+            # If no thinking tags or parsing failed, return as-is
+            return response_text.strip()
         except Exception as e:
             logger.error(f"Error generating response from OpenAI: {e}")
             raise
-    
     async def generate_with_json_output(self, 
                                        prompt: str, 
                                        json_schema: Dict[str, Any],
@@ -155,7 +165,6 @@ class R1Model(BaseModel):
             )
             
             response_text = response.choices[0].message.content
-            think_text, answer_text = response_text.split("</think>\n\n", 1)
             return json.loads(answer_text)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to decode JSON response: {e}")
@@ -203,6 +212,98 @@ class R1Model(BaseModel):
                 return default
             raise
     
+    async def generate_with_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate response using full message history (for multi-turn tool calls).
+
+        Args:
+            messages: Full conversation history with roles
+            tools: List of tool definitions
+            temperature: Controls randomness
+            max_tokens: Maximum tokens to generate
+            tool_choice: Controls which tool to call
+            **kwargs: Additional parameters
+
+        Returns:
+            Full API response dictionary
+
+        Raises:
+            ModelError: On generation failure
+        """
+        temperature = temperature if temperature is not None else self.temperature
+        max_tokens = max_tokens if max_tokens is not None else self.max_tokens
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice=tool_choice,
+                **kwargs
+            )
+
+            # Convert to dict for consistency
+            return response.model_dump()
+        except Exception as e:
+            logger.error(f"Error generating response with messages: {e}")
+            raise
+
+    async def generate_with_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate response using full message history (for multi-turn tool calls).
+
+        Args:
+            messages: Full conversation history with roles
+            tools: List of tool definitions
+            temperature: Controls randomness
+            max_tokens: Maximum tokens to generate
+            tool_choice: Controls which tool to call
+            **kwargs: Additional parameters
+
+        Returns:
+            Full API response dictionary
+
+        Raises:
+            ModelError: On generation failure
+        """
+        temperature = temperature if temperature is not None else self.temperature
+        max_tokens = max_tokens if max_tokens is not None else self.max_tokens
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice=tool_choice,
+                **kwargs
+            )
+
+            # Convert to dict for consistency
+            return response.model_dump()
+        except Exception as e:
+            logger.error(f"Error generating response with messages: {e}")
+            raise
+
     async def embed(self, text: Union[str, List[str]]) -> Union[List[float], List[List[float]]]:
         """
         Generate embeddings for the given text(s).
