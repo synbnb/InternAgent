@@ -1,0 +1,39 @@
+{
+  "joint_probe": {
+    "mean_r2": 1.0,
+    "std_r2": 0.0,
+    "mean_hydrophobicity_r2": 1.0,
+    "mean_charge_r2": 1.0,
+    "fold_r2_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "best_alphas": [
+      0.0001,
+      0.0001,
+      0.0001,
+      0.0001,
+      0.0001
+    ]
+  },
+  "classification": {
+    "mean_q3_embedding": 0.9998054997279159,
+    "std_q3_embedding": 0.0011254752065256947,
+    "mean_q3_augmented": 0.9998456793034646,
+    "std_q3_augmented": 0.0010058015667126657
+  },
+  "statistical_test": {
+    "statistic": 30.5,
+    "p_value": 0.03744183116399598,
+    "mean_difference": 4.0179575548703216e-05,
+    "significant": true
+  },
+  "metadata": {
+    "n_proteins": 1000,
+    "n_folds_probe": 5,
+    "n_folds_classification": 10
+  }
+}

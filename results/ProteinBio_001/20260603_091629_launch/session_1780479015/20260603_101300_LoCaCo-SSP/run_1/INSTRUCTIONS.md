@@ -1,0 +1,157 @@
+Your goal is to reproduce the findings from a scientific paper by implementing the following approach.
+
+## Reproduction Approach
+We first reproduce the baseline secondary structure prediction performance reported in the ProtTrans paper by training a linear classifier on per‑residue embeddings extracted from the last hidden layer of the frozen ProtBERT model, evaluated under strict homology‑aware cross‑validation (MMseqs2 clustering at 30% sequence identity). Building on this baseline, we introduce a contrastive learning stage where a 2‑layer MLP projection head maps the frozen embeddings into a new space. Positive pairs are defined not only by sharing the same secondary structure label, but also by exhibiting a high local sequence context similarity – computed as the average normalized BLOSUM62 score over a symmetric, aligned window of ±3 residues. This biologically grounded positive‑pair criterion encourages the projection head to capture evolutionary conservation patterns relevant to secondary structure. After freezing the projection head, a linear classifier on the projected features achieves a statistically significant improvement in per‑residue Q3 accuracy, validated by McNemar’s test performed within each fold of a homologous partition and combined via Fisher’s method across folds, with replicate training to control randomness. The entire pipeline is computationally lightweight and fully reproducible.
+
+## Proposed Method
+## Method: Locally Context-Aware Contrastive Learning for Secondary Structure Prediction
+
+### 1. Preliminaries and Notation
+
+Let \( \mathcal{D} = \{ (\mathbf{S}_p, \mathbf{y}_p) \}_{p=1}^{P} \) be the dataset of \( P = 1000 \) proteins. For protein \( p \) of length \( L_p \), the amino acid sequence is \( \mathbf{S}_p = (a_{p,1}, \dots, a_{p,L_p}) \), and the secondary structure label at each position is \( \mathbf{y}_p = (y_{p,1}, \dots, y_{p,L_p}) \) with \( y_{p,i} \in \{\text{H},\text{E},\text{C}\} \). The set of all residues is \( \mathcal{R} = \{ (p,i) \mid 1\le p\le P,\; 1\le i\le L_p \} \), and let \( N = |\mathcal{R}| \).
+
+For every residue \( r = (p,i) \in \mathcal{R} \), we extract a frozen embedding \( \mathbf{e}_r \in \mathbb{R}^{1024} \) from the **last hidden layer** of the **ProtBERT** model (Rostlab/prot_bert). These embeddings remain completely fixed throughout all stages.
+
+**BLOSUM62 Matrix.** Let \( \mathbf{B} \in \mathbb{R}^{20 \times 20} \) be the BLOSUM62 substitution matrix. Its values range from –4 to +11. We linearly rescale to \( [0,1] \):
+\[
+\tilde{B}_{uv} = \frac{B_{uv} - (-4)}{11 - (-4)} = \frac{B_{uv} + 4}{15}.
+\]
+
+### 2. Baseline: Linear Probe on Frozen Embeddings
+
+To reproduce the ProtTrans result, we train a linear classifier using the frozen ProtBERT embeddings under homology‑aware cross‑validation. For a residue \( r \), the predicted logits are
+\[
+\hat{\mathbf{y}}_r = \mathbf{W} \mathbf{e}_r + \mathbf{b},\quad \mathbf{W} \in \mathbb{R}^{3 \times 1024},\; \mathbf{b} \in \mathbb{R}^3.
+\]
+The model minimizes per‑residue cross‑entropy loss:
+\[
+\mathcal{L}_{\text{CE}} = -\frac{1}{N} \sum_{r\in\mathcal{R}} \log \frac{\exp(\hat{y}_{r, c_r})}{\sum_{c=1}^3 \exp(\hat{y}_{r, c})},
+\]
+where \( c_r \) indexes the true label. Optimization uses AdamW with learning rate \( 10^{-3} \), weight decay \( 10^{-4} \), and early stopping based on validation Q3 accuracy (patience = 10 epochs).
+
+**Homology‑aware cross‑validation.** Proteins are clustered with MMseqs2 at 30% sequence identity. Clusters are grouped into 10 folds ensuring no homologs are shared between folds. We report the per‑fold Q3 accuracy and its mean. This setup is designed to yield a Q3 accuracy within ±2% of the 73% reported in ProtTrans.
+
+### 3. Local Sequence Context Similarity (Corrected)
+
+Define a symmetric window of half‑width \( k = 3 \) residues. For a residue pair \( r = (p,i) \) and \( r' = (q,j) \), the set of valid relative offsets for alignment is
+\[
+\Omega = \{ \Delta \in \mathbb{Z} \mid -k \le \Delta \le k,\; 1 \le i+\Delta \le L_p,\; 1 \le j+\Delta \le L_q \}.
+\]
+Note that \( \Delta = 0 \) is always present because \( i \) and \( j \) are valid indices, so \( |\Omega| \ge 1 \). The local context similarity is then defined as the average normalized BLOSUM62 score over all valid aligned positions:
+\[
+s(r, r') = \frac{1}{|\Omega|} \sum_{\Delta \in \Omega} \tilde{B}_{a_{p,i+\Delta},\, a_{q,j+\Delta}}.
+\]
+This corrects the original formula where denominator mismatched the actual number of summed terms, ensuring \( s(r,r') \in [0,1] \).
+
+**Hyperparameter justification.** The half‑width \( k = 3 \) captures a local environment of about one to two helical turns (helix pitch 3.6 residues per turn) or a typical β‑strand length (3–4 residues), both critical for secondary structure. The threshold \( \tau = 0.5 \) corresponds to moderate evolutionary similarity: two identical 7‑residue windows yield a similarity of ~1.0, while random unrelated windows yield values near 0.25–0.35; 0.5 thus separates meaningfully conserved local motifs from background similarity.
+
+**Positive pair definition.** A residue pair \( (r, r') \) is considered positive if they share the same secondary structure label and their local context similarity exceeds \( \tau \):
+\[
+\mathcal{P} = \{ (r, r') \mid y_r = y_{r'} \;\land\; s(r, r') > 0.5 \}.
+\]
+
+### 4. Contrastive Projection Head Training
+
+We introduce a 2‑layer MLP projection head \( g_\theta : \mathbb{R}^{1024} \to \mathbb{R}^{128} \) with parameters \( \theta \):
+\[
+\mathbf{h}_r = \text{ReLU}(\mathbf{U} \mathbf{e}_r + \mathbf{c}),\qquad
+\mathbf{z}_r = \mathbf{V} \mathbf{h}_r + \mathbf{d},
+\]
+where \( \mathbf{U} \in \mathbb{R}^{512 \times 1024} \), \( \mathbf{c} \in \mathbb{R}^{512} \), \( \mathbf{V} \in \mathbb{R}^{128 \times 512} \), \( \mathbf{d} \in \mathbb{R}^{128} \). The output \( \mathbf{z}_r \) is \( \ell_2 \)-normalized before use in the contrastive loss.
+
+**Contrastive Loss.** For a minibatch \( \mathcal{B} \subset \mathcal{R} \) of size \( B \), let \( \mathcal{P}(i) = \{ j \in \mathcal{B}\setminus\{i\} \mid (i,j) \in \mathcal{P} \} \) be the set of positives of anchor \( i \) within the batch. If \( \mathcal{P}(i) = \emptyset \), the anchor \( i \) is **excluded** from the loss computation (no gradient flows through it). Otherwise, the loss for anchor \( i \) is:
+\[
+\ell_i = \frac{-1}{|\mathcal{P}(i)|} \sum_{j \in \mathcal{P}(i)} \log \frac{\exp(\mathbf{z}_i^\top \mathbf{z}_j / \tau')}{\displaystyle\sum_{\substack{a \in \mathcal{B}\setminus\{i\} \\ \mathcal{P}(a) \neq \emptyset}} \exp(\mathbf{z}_i^\top \mathbf{z}_a / \tau')},
+\]
+where the denominator is summed over all other residues in the batch that are not excluded due to empty positive sets. The total batch loss is the mean over anchors with non‑empty \( \mathcal{P}(i) \):
+\[
+\mathcal{L}_{\text{con}} = \frac{1}{| \{ i\in\mathcal{B} : \mathcal{P}(i) \neq \emptyset \} |} \sum_{\substack{i \in \mathcal{B} \\ \mathcal{P}(i) \neq \emptyset}} \ell_i.
+\]
+The temperature is fixed at \( \tau' = 0.1 \).
+
+**Minibatch sampling and efficiency.** Minibatches of size \( B = 1024 \) are drawn randomly from the training fold residues. For each batch, pairwise local context similarities are computed efficiently using vectorized operations; the cost is \( O(B^2 \cdot L_{\text{eff}}) \) with \( L_{\text{eff}} \le 7 \).
+
+**Validation for early stopping.** Within each training fold, we reserve 10% of proteins (ensuring no homology to the test set or among themselves using MMseqs2 cluster labels) as a validation set. After every epoch, the contrastive loss is evaluated on the validation set; training stops if the loss does not improve for 20 consecutive epochs. The projection head with the smallest validation loss is retained.
+
+**Optimization.** Only the parameters \( \theta \) of the projection head are updated, using AdamW with learning rate \( 10^{-4} \) and weight decay \( 10^{-5} \). 
+
+### 5. Linear Classifier on Projected Embeddings
+
+After the projection head is frozen, we compute the projected embeddings \( \mathbf{z}_r = g_\theta(\mathbf{e}_r) \) for every residue in the training fold. A new linear classifier is then trained on these projected embeddings:
+\[
+\hat{\mathbf{y}}_r^{(\text{proj})} = \mathbf{W}' \mathbf{z}_r + \mathbf{b}',\quad \mathbf{W}' \in \mathbb{R}^{3 \times 128},\; \mathbf{b}' \in \mathbb{R}^3.
+\]
+Training uses the same cross‑entropy loss, AdamW (LR \( 10^{-3} \), weight decay \( 10^{-4} \)), and early stopping as the baseline.
+
+### 6. Evaluation and Statistical Significance
+
+**Evaluation protocol.** We use a single homology‑aware 10‑fold cross‑validation. For each fold:
+1. Train the baseline linear probe once (using the raw \( \mathbf{e}_r \) embeddings). Record per‑residue predictions on the test fold.
+2. For the proposed method, run **5 independent training replicates** of the projection head (different random seeds for initialization and minibatch ordering) on the same training fold. For each test residue, obtain 5 logit vectors from the linear classifiers trained on the projected embeddings; the final prediction is the majority vote over the three classes of the averaged logits. This yields a single prediction per residue for the proposed method.
+
+**McNemar’s test.** For each fold, construct a 2×2 contingency table comparing the misclassifications of the baseline and the proposed method on the test residues of that fold. McNemar’s test is applied to obtain a p‑value \( p_f \) for the null hypothesis of equal error rates. Because each residue appears in exactly one test fold, independence holds within a fold.
+
+**Combining p‑values.** The 10 fold‑wise p‑values are combined using Fisher’s method:
+\[
+\chi^2 = -2 \sum_{f=1}^{10} \ln p_f,
+\]
+which under the global null hypothesis follows a \( \chi^2 \) distribution with 20 degrees of freedom. An overall significance level of \( \alpha = 0.01 \) is used.
+
+**Performance metric.** Primary metric is per‑residue Q3 accuracy. We report the mean over folds for both methods and the combined Fisher p‑value.
+
+### 7. Theoretical Motivation
+
+Contrastive learning maximizes a lower bound on mutual information between representations of related samples. By defining positive pairs through both structural label agreement and evolutionary similarity of the local sequence, we encourage the projected representations to be invariant to local amino acid substitutions that preserve secondary structure while distinguishing changes that disrupt it. This inductive bias is directly relevant to the physico‑chemical determinants of local folding and complements the global sequence‑level information already captured by the frozen ProtBERT embeddings.
+
+### Algorithmic Summary
+
+**Input**: Dataset of proteins with sequences and labels, frozen ProtBERT embeddings.  
+**Output**: Q3 accuracy for baseline and contrastive‑enhanced method, combined p‑value.
+
+1. **Homology split**: Use MMseqs2 (30% identity) to partition proteins into 10 folds.
+2. For each fold \( f=1,\dots,10 \):
+   - **Baseline**: Train linear classifier on train‑fold raw embeddings; test on held‑out fold.
+   - **Projection head validation set**: Set aside 10% of train‑fold proteins (using cluster info) for early stopping.
+   - **Contrastive training (5 replicates)**:
+     - For each replicate \( r=1,\dots,5 \):
+       - Randomly initialize \( g_\theta^{(r)} \).
+       - Train on the remaining train‑fold residues using the contrastive loss; validate on the held‑out set; stop when validation loss plateaus.
+       - Freeze \( g_\theta^{(r)} \). Train a linear classifier on its projected embeddings from the full train‑fold (excluding validation set).
+     - For each test residue, average the output logits from the 5 classifiers to obtain final prediction.
+   - **McNemar test**: Compute p‑value \( p_f \) comparing baseline and final predictions.
+3. **Combine**: Fisher’s method gives overall p‑value; report mean Q3 accuracies.
+
+**Complexity**: The method adds minimal overhead over a simple linear probe; all stages are feasible on a single GPU with moderate memory.
+
+## Research Task
+复现ProtTrans论文的核心发现：使用蛋白质语言模型进行二级结构预测
+
+## Available Data
+- protein_sequences_sample.csv: 包含1000条蛋白质序列样本及其二级结构标签的CSV文件，包含字段：sequence（氨基酸序列）、secondary_structure（二级结构标签：H/E/C）、protein_id
+- pretrained_embeddings.json: 预训练蛋白质语言模型（如ProtBERT）生成的嵌入向量样本，包含前100个蛋白质的嵌入表示
+- protein_features.csv: 传统蛋白质序列特征：氨基酸组成、疏水性、电荷等物理化学特征
+
+## Evaluation Criteria (Checklist)
+Your work will be scored on 0 criteria:
+
+
+## Workspace Layout
+- Write analysis code in `code/experiment.py` (and helper modules in `code/`)
+- Save intermediate outputs (data files, CSV, etc.) in `outputs/`
+- Write your final report as `report/report.md` — this is REQUIRED and will be scored
+- Save ALL generated figures in `report/images/`
+- Reference papers are in `related_work/`
+- Raw data is in `data/`
+
+## Execution
+You have up to 1 runs. Each run executes `bash launcher.sh` from the workspace directory.
+Do NOT modify `launcher.sh`.
+
+## Requirements
+1. Implement a complete, runnable `code/experiment.py` that reproduces the findings
+2. Paths should be relative to the workspace root (e.g., `data/filename.dat`, `outputs/result.csv`)
+3. Your `report/report.md` MUST describe all results quantitatively and reference generated figures
+4. Each generated figure must be saved to `report/images/` and referenced in the report
+5. Focus on the checklist criteria — they specify exactly what must be reproduced
+
+Any modifications to argparse parameters **must set improved implementations as defaults**.

@@ -1,0 +1,37 @@
+{
+    "task_name": "AutoDebug",
+    "domain": "machine learning",
+    "description": "A lightweight debug task for testing the InternAgent pipeline. Uses synthetic regression data with a simple MLP model to verify the full workflow (idea generation, experiment execution, evaluation) in approximately 5 seconds per run.",
+    "goal": "Improve the MLP regression model's performance on synthetic data. The baseline uses a simple 2-layer MLP. Explore architectural improvements, regularization techniques, or training optimizations.",
+    "dataset": "Synthetic regression dataset with 1000 samples, 20 features, generated using sklearn.datasets.make_regression",
+    "baseline": "2-layer MLP (64->32 hidden units) with ReLU activation, trained for 100 epochs",
+    "metrics": {
+        "primary": "mse",
+        "secondary": [
+            "r2",
+            "mae"
+        ],
+        "optimization_direction": "minimize"
+    },
+    "constraints": [
+        "Training must complete within 30 seconds",
+        "Model must use PyTorch",
+        "Must maintain the same train/test split for fair comparison"
+    ],
+    "fix_direction": "",
+    "task_description": "Below are three high‐level research directions—each stays squarely within the theme of structure-aware regressors and leverages our highest-confidence lessons, while pointing at gaps we’ve barely touched.\n\n1. Meta-Discovery of Domain Structure  \n   • What if instead of manually prescribing groupings or hierarchies, we could *learn* the optimal partitioning or graph topology from data?  \n   • Explore how to infer, validate, and refine latent structure (e.g. clusters, tree hierarchies, spatial adjacency) before committing it to an architecture.  \n   • Key questions: Which meta-criteria best predict when an inferred structure will yield gains over a generic baseline? How stable are those inferred priors under limited data or noisy labels?\n\n2. Mapping Structural Bias to Distribution-Shift Robustness  \n   • We know structured models often “fall back” more gracefully under shift, but we lack a fine-grained picture of *which* biases help *with which* shift families.  \n   • Systematically characterize performance under controlled covariate, label, and concept shifts as a function of architectural constraints (e.g. block-partitioning vs. weight-sharing vs. global fusion depth).  \n   • Key questions: Can we predict a model’s worst-case degradation from its connectivity pattern? Are there shifts where too much structure becomes detrimental?\n\n3. Hierarchical and Dynamic Local–Global Fusion Topologies  \n   • Beyond a single local encode + global fuse, the design space of multi-stage or dynamically routed fusion remains largely unexplored.  \n   • Investigate how multi-scale hierarchies (e.g. patch→region→global) or input-adaptive routing mechanisms affect representational efficiency and learning dynamics.  \n   • Key questions: Where does additional fusion depth truly pay off? How can we identify the minimal yet sufficient set of fusion stages for a given domain structure?\n\nEach direction focuses not on “implement this network,” but on *what* to learn next: how to uncover structure automatically, how to link biases to real-world robustness, and how far multi-stage fusion can be pushed before hitting diminishing returns.",
+    "_generation_metadata": {
+        "generated_at": "2026-01-08T10:27:19.237337",
+        "num_candidates_generated": 3,
+        "num_valid_candidates": 2,
+        "selected_candidate_id": 0,
+        "exploration_score": 0.0,
+        "exploration_metadata": {
+            "reason": "no_similar_ideas",
+            "related_count": 0,
+            "cluster_sizes": {}
+        },
+        "experiences_used": 10,
+        "total_experiences": 10
+    }
+}

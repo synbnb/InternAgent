@@ -1,0 +1,53 @@
+{
+    "timestamp": "2026-06-03T10:54:16.275431",
+    "launch_id": "20260603_091629_launch",
+    "task": "ProteinBio_001",
+    "task_dir": "sci_tasks/tasks/ProteinBio_001",
+    "task_type": "sci",
+    "original_task_dir": "sci_tasks/tasks/ProteinBio_001",
+    "mode": "experiment",
+    "output_dir": "results/ProteinBio_001/20260603_091629_launch",
+    "base_output_dir": "results/ProteinBio_001",
+    "skip_idea_generation": false,
+    "total_rounds": 1,
+    "loop_rounds": 1,
+    "loop_mode": "incremental",
+    "sessions": [
+        "session_1780479015"
+    ],
+    "total_ideas": 2,
+    "total_successful": 2,
+    "total_failed": 0,
+    "rounds": [
+        {
+            "round": 1,
+            "session_id": "session_1780479015",
+            "results": [
+                {
+                    "idea_name": "LoCaCo-SSP",
+                    "success": true,
+                    "gpu_ids": "4",
+                    "folder_name": "results/ProteinBio_001/20260603_091629_launch/session_1780479015/20260603_101300_LoCaCo-SSP",
+                    "code_path": "results/ProteinBio_001/20260603_091629_launch/session_1780479015/20260603_101300_LoCaCo-SSP",
+                    "performance": {}
+                },
+                {
+                    "idea_name": "Shared Projection Contrastive Learning (SPCL)",
+                    "success": true,
+                    "gpu_ids": "4",
+                    "folder_name": "results/ProteinBio_001/20260603_091629_launch/session_1780479015/20260603_103147_Shared Projection Contrastive Learning (SPCL)",
+                    "code_path": "results/ProteinBio_001/20260603_091629_launch/session_1780479015/20260603_103147_Shared Projection Contrastive Learning (SPCL)",
+                    "performance": {}
+                }
+            ],
+            "successful": 2,
+            "failed": 0
+        }
+    ],
+    "incremental_mode": {
+        "final_best_code_path": "sci_tasks/tasks/ProteinBio_001",
+        "final_best_performance": null
+    },
+    "exp_backend": "claudecode",
+    "model": "glm-5"
+}

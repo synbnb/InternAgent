@@ -173,7 +173,7 @@ cython_debug/
 
 .idea/*
 examples/
-result*/
+# result*/  # Commented out to allow uploading results directory
 tmp
 datasets
 
