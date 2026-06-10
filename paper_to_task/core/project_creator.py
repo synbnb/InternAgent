@@ -175,7 +175,7 @@ class ProjectCreator:
 ## 下一步操作
 
 1. 准备数据文件
-2. 运行实验: `python launch_discovery.py --task <this_task_id>`
+2. 运行实验: `python launch_discovery.py --task sci_tasks/tasks/<this_task_id>`
 3. 查看结果和分析
 
 ## 任务进度
@@ -218,7 +218,7 @@ class ProjectCreator:
 
 ```bash
 # 启动实验
-python launch_discovery.py --task {task_id}
+python launch_discovery.py --task sci_tasks/tasks/{task_id}
 
 # 查看结果
 # 结果将保存在 results/{task_id}/ 目录下
@@ -276,14 +276,14 @@ pip install -r requirements.txt
 ## 3. 运行实验
 
 ```bash
-# 基本运行
-python launch_discovery.py --task {task_id}
+# 基本运行（使用完整路径）
+python launch_discovery.py --task sci_tasks/tasks/{task_id}
 
 # 指定输出目录
-python launch_discovery.py --task {task_id} --output results/
+python launch_discovery.py --task sci_tasks/tasks/{task_id} --output results/
 
 # 查看详细日志
-python launch_discovery.py --task {task_id} --verbose
+python launch_discovery.py --task sci_tasks/tasks/{task_id} --verbose
 ```
 
 ## 4. 查看结果
@@ -321,7 +321,7 @@ A: 使用 `--verbose` 参数或查看 `results/` 目录下的日志文件。
         return [
             f"1. 准备数据文件到 {task_dir}/data/ 目录",
             f"2. 查看并理解 {task_dir}/task_info.json 中的任务描述",
-            f"3. 运行: python launch_discovery.py --task {task_id}",
+            f"3. 运行: python launch_discovery.py --task sci_tasks/tasks/{task_id}",
             f"4. 查看结果: results/{task_id}/ 目录",
             "5. 根据checklist.json标准进行自评"
         ]
