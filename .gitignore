@@ -177,6 +177,11 @@ examples/
 tmp
 datasets
 
+# Paper-to-Task outputs
+output/
+temp_uploads/
+paper_to_task_uploads/
+
 demo*/
 
 logs/
