@@ -35,19 +35,19 @@ class QualityChecker:
         clarity_score = self._check_clarity(task_info, checklist)
         feasibility_score = self._check_feasibility(task_info)
 
-        # 计算总体分数
+        # 计算总体分数（转百分制）
         scores = {
-            'completeness': completeness_score,
-            'accuracy': accuracy_score,
-            'clarity': clarity_score,
-            'feasibility': feasibility_score
+            'completeness': round(completeness_score * 100, 1),
+            'accuracy': round(accuracy_score * 100, 1),
+            'clarity': round(clarity_score * 100, 1),
+            'feasibility': round(feasibility_score * 100, 1)
         }
 
-        overall_score = sum(scores.values()) / len(scores)
+        overall_score = round(sum(scores.values()) / len(scores), 1)
 
-        # 判断是否通过
+        # 判断是否通过（阈值也转百分制）
         passed = all(
-            score >= threshold for score, threshold in
+            score >= threshold * 100 for score, threshold in
             zip(scores.values(), self.quality_thresholds.values())
         )
 
@@ -133,13 +133,6 @@ class QualityChecker:
             )
             if clear_items / len(checklist) >= 0.7:
                 score += 0.3
-
-        # 检查关键词
-        has_keywords = any(
-            item.get('keywords') for item in checklist
-        )
-        if has_keywords:
-            score += 0.2
 
         return min(score, 1.0)
 
@@ -277,7 +270,7 @@ class QualityChecker:
 
         # 总体评分
         overall_score = check_result.get('overall_score', 0)
-        report.append(f"总体评分: {overall_score:.2f}/1.00")
+        report.append(f"总体评分: {overall_score:.1f}/100")
 
         passed = check_result.get('passed', False)
         status = "✅ 通过" if passed else "❌ 不通过"
@@ -287,7 +280,7 @@ class QualityChecker:
         report.append("详细评分:")
         scores = check_result.get('detailed_scores', {})
         for aspect, score in scores.items():
-            report.append(f"  {aspect}: {score:.2f}")
+            report.append(f"  {aspect}: {score:.1f}/100")
 
         # 改进建议
         recommendations = check_result.get('recommendations', [])

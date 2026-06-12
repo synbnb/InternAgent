@@ -20,7 +20,7 @@ class QualityScorer:
 
     def score_content(self, content: Dict[str, Any]) -> Dict[str, Any]:
         """
-        对内容进行全面质量评分
+        对内容进行全面质量评分（百分制，0-100）
 
         Args:
             content: 包含task_info和checklist的字典
@@ -31,32 +31,36 @@ class QualityScorer:
         task_info = content.get('task_info', {})
         checklist = content.get('checklist', [])
 
-        # 计算各维度分数
-        dimension_scores = {
+        # 计算各维度分数（内部仍为0-1，加权后转百分制）
+        dimension_scores_raw = {
             'completeness': self._score_completeness(task_info, checklist),
             'accuracy': self._score_accuracy(task_info, checklist),
             'clarity': self._score_clarity(task_info, checklist),
             'feasibility': self._score_feasibility(task_info)
         }
 
-        # 计算加权总分
-        overall_score = sum(
+        # 计算加权总分（0-1范围）
+        weighted_raw = sum(
             score * self.dimension_weights[dim]
-            for dim, score in dimension_scores.items()
+            for dim, score in dimension_scores_raw.items()
         )
 
+        # 转为百分制
+        overall_score = round(weighted_raw * 100, 1)
+        dimension_scores = {k: round(v * 100, 1) for k, v in dimension_scores_raw.items()}
+
         # 生成评级
-        grade = self._get_grade(overall_score)
+        grade = self._get_grade(weighted_raw)
 
         # 生成建议
-        suggestions = self._generate_suggestions(dimension_scores, task_info, checklist)
+        suggestions = self._generate_suggestions(dimension_scores_raw, task_info, checklist)
 
         return {
-            'overall_score': round(overall_score, 3),
+            'overall_score': overall_score,
             'grade': grade,
-            'dimension_scores': {k: round(v, 3) for k, v in dimension_scores.items()},
+            'dimension_scores': dimension_scores,
             'suggestions': suggestions,
-            'passed': overall_score >= 0.7
+            'passed': weighted_raw >= 0.7
         }
 
     def _score_completeness(self, task_info: Dict, checklist: List) -> float:
@@ -202,25 +206,14 @@ class QualityScorer:
             elif avg_length >= 15:
                 score += 10
 
-            # 关键词覆盖率
-            items_with_keywords = sum(
-                1 for item in checklist
-                if item.get('keywords') and isinstance(item.get('keywords'), list)
-            )
-
-            if items_with_keywords == len(checklist):
-                score += 20
-            elif items_with_keywords >= len(checklist) * 0.5:
-                score += 10
-
-            # 评估标准覆盖率
+            # 内容充实度（替代原来对keywords和evaluation_criteria的检查）
             items_with_criteria = sum(
                 1 for item in checklist
-                if item.get('evaluation_criteria')
+                if len(item.get('content', '')) > 30
             )
 
             if items_with_criteria >= len(checklist) * 0.7:
-                score += 15
+                score += 20
             elif items_with_criteria >= len(checklist) * 0.3:
                 score += 8
 
@@ -331,7 +324,7 @@ class QualityScorer:
 
     def compare_scores(self, score1: Dict, score2: Dict) -> Dict[str, Any]:
         """
-        比较两次评分
+        比较两次评分（百分制）
 
         Args:
             score1: 第一次评分
@@ -350,8 +343,8 @@ class QualityScorer:
 
         return {
             'improved': diff > 0,
-            'score_difference': round(diff, 3),
-            'dimension_differences': {k: round(v, 3) for k, v in dimension_diffs.items()},
+            'score_difference': round(diff, 1),
+            'dimension_differences': {k: round(v, 1) for k, v in dimension_diffs.items()},
             'improvement_percentage': round((diff / score1['overall_score']) * 100, 1) if score1['overall_score'] > 0 else 0
         }
 
@@ -371,7 +364,7 @@ class QualityScorer:
         # 总体评分
         overall_score = score_result['overall_score']
         grade = score_result['grade']
-        summary.append(f"总体评分: {overall_score:.3f}/1.000 (评级: {grade})")
+        summary.append(f"总体评分: {overall_score:.1f}/100 (评级: {grade})")
 
         passed = score_result.get('passed', False)
         status = "✅ 通过" if passed else "❌ 不通过"
@@ -388,10 +381,10 @@ class QualityScorer:
                 'feasibility': '可行性'
             }.get(dim, dim)
 
-            # 进度条表示
-            bar_length = int(score * 20)
+            # 进度条表示 (0-100)
+            bar_length = int(score / 100 * 20)
             bar = '█' * bar_length + '░' * (20 - bar_length)
-            summary.append(f"  {dim_name}: {bar} {score:.3f}")
+            summary.append(f"  {dim_name}: {bar} {score:.1f}/100")
 
         # 改进建议
         suggestions = score_result.get('suggestions', [])

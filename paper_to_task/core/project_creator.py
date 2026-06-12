@@ -31,6 +31,7 @@ class ProjectCreator:
                        task_info: Dict,
                        checklist: List[Dict],
                        pdf_path: Optional[str] = None,
+                       research_doc: str = "",
                        domain: str = "Science") -> Dict[str, Any]:
         """
         创建完整的项目结构
@@ -40,6 +41,7 @@ class ProjectCreator:
             task_info: 任务信息
             checklist: 检查清单
             pdf_path: PDF文件路径（可选）
+            research_doc: 研究详情文档（可选）
             domain: 领域名称
 
         Returns:
@@ -55,6 +57,10 @@ class ProjectCreator:
 
             # 创建文件
             self._create_files(task_dir, task_info, checklist, task_name)
+
+            # 保存研究详情文档
+            if research_doc:
+                self._save_research_doc(task_dir, research_doc)
 
             # 复制PDF文件
             if pdf_path:
@@ -129,6 +135,13 @@ class ProjectCreator:
         except Exception as e:
             print(f"复制PDF文件失败: {e}")
             return False
+
+    def _save_research_doc(self, task_dir: Path, research_doc: str) -> None:
+        """保存研究详情文档"""
+        if research_doc:
+            doc_path = task_dir / "RESEARCH_DETAILS.md"
+            with open(doc_path, 'w', encoding='utf-8') as f:
+                f.write(research_doc)
 
     def _generate_documentation(self, task_dir: Path,
                                task_info: Dict,

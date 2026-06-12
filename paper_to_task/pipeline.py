@@ -90,7 +90,7 @@ class PaperToTaskPipeline:
             paper_content = self._parse_pdf(pdf_path)
             print(f"✅ PDF解析完成 ({paper_content['page_count']}页)")
 
-            # 第二步：提取研究信息
+            # 第二步：提取研究信息（所有工作交给LLM）
             print("[2/6] 正在提取研究信息...")
             research_info = self._extract_research_info(paper_content)
             print(f"✅ 研究信息提取完成 (领域: {research_info.get('research_field', 'Unknown')})")
@@ -103,7 +103,7 @@ class PaperToTaskPipeline:
             # 第四步：质量检查
             print("[4/6] 正在进行质量检查...")
             quality_result = self._check_quality(generated_content)
-            print(f"✅ 质量检查完成 (评分: {quality_result['overall_score']:.2f})")
+            print(f"✅ 质量检查完成 (评分: {quality_result['overall_score']:.1f}/100)")
 
             # 第五步：自动改进（可选）
             min_score = self.config.get('quality', {}).get('min_score', 0.7)
@@ -165,36 +165,37 @@ class PaperToTaskPipeline:
         return paper_content
 
     def _extract_research_info(self, paper_content: Dict) -> Dict[str, Any]:
-        """提取研究信息"""
-        research_info = self.info_extractor.extract_all_info(paper_content)
-
-        # 提取领域信息
-        domain_info = self.info_extractor.extract_domain_info(research_info)
-        research_info.update(domain_info)
-
-        return research_info
+        """提取研究信息（完全交给LLM）"""
+        return self.info_extractor.extract_all_info(paper_content)
 
     def _generate_content(self, research_info: Dict,
                         paper_content: Dict) -> Dict[str, Any]:
-        """生成task_info和checklist"""
-        # 生成task_info
+        """生成task_info、checklist和research_doc"""
+        # 生成task_info（简化版）
         task_info = self.content_generator.generate_task_info(
             research_info,
-            paper_content['metadata']
+            research_info  # 直接使用research_info作为metadata
         )
 
-        # 生成checklist
+        # 生成checklist（使用LLM生成针对性内容）
         checklist = self.content_generator.generate_checklist(
             research_info,
-            paper_content
+            self.llm_client
         )
 
         # 平衡权重
         checklist = self.content_generator.balance_checklist_weights(checklist)
 
+        # 生成研究详情文档
+        research_doc = self.content_generator.generate_research_doc(
+            research_info,
+            research_info  # 直接使用research_info作为metadata
+        )
+
         return {
             'task_info': task_info,
-            'checklist': checklist
+            'checklist': checklist,
+            'research_doc': research_doc
         }
 
     def _check_quality(self, content: Dict) -> Dict[str, Any]:
@@ -248,8 +249,11 @@ class PaperToTaskPipeline:
             'success': True,
             'task_info': content['task_info'],
             'checklist': content['checklist'],
+            'research_doc': content.get('research_doc', ''),
             'research_info': research_info,
-            'paper_metadata': paper_content['metadata'],
+            'paper_metadata': research_info,  # 使用research_info作为元数据
+            'paper_sources': research_info.get('_paper_sources', {}),  # 论文原文引用
+            'raw_markdown': paper_content.get('markdown_content', ''),  # 原始论文Markdown
             'quality': {
                 'score': quality_result['overall_score'],
                 'grade': quality_result['grade'],
@@ -260,6 +264,7 @@ class PaperToTaskPipeline:
             'validation': quality_result['validation'],
             'next_steps': [
                 '检查生成的task_info.json和checklist.json',
+                '查看RESEARCH_DETAILS.md了解详细研究信息',
                 '如需修改，使用refine功能进行改进',
                 '确认后使用create_project创建项目'
             ]
@@ -313,6 +318,7 @@ class PaperToTaskPipeline:
                       task_info: Dict,
                       checklist: List[Dict],
                       pdf_path: Optional[str] = None,
+                      research_doc: str = "",
                       domain: str = "Science") -> Dict[str, Any]:
         """
         创建sci_tasks项目
@@ -322,6 +328,7 @@ class PaperToTaskPipeline:
             task_info: 任务信息
             checklist: 检查清单
             pdf_path: PDF文件路径
+            research_doc: 研究详情文档
             domain: 领域名称
 
         Returns:
@@ -336,6 +343,7 @@ class PaperToTaskPipeline:
                 task_info=task_info,
                 checklist=checklist,
                 pdf_path=pdf_path,
+                research_doc=research_doc,
                 domain=domain
             )
 

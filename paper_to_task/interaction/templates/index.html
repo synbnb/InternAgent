@@ -1,0 +1,2191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper-to-Task 自动化系统</title>
+    <style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+    --bg-canvas: #F6F3EE;
+    --bg-surface: #FFFFFF;
+    --bg-subtle: rgba(255,255,255,0.7);
+    --bg-card: #FFFFFF;
+    --bg-hover: #F0ECE4;
+    --border-light: #E5DDD3;
+    --border-focus: #8B7355;
+    --text-heading: #1A1814;
+    --text-primary: #2C2824;
+    --text-secondary: #7A7266;
+    --text-tertiary: #A69B8C;
+    --accent: #8B7355;
+    --accent-light: rgba(139,115,85,0.08);
+    --accent-glow: rgba(139,115,85,0.15);
+    --success: #6A9A73;
+    --warning: #C49B5A;
+    --danger: #B5584A;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-xl: 22px;
+    --ease-smooth: cubic-bezier(0.32,0.72,0,1);
+    --font-display: 'Playfair Display', 'IvyPresto', 'Georgia', 'Times New Roman', serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Courier New', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: var(--font-body);
+    background: var(--bg-canvas);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.015'/%3E%3C/svg%3E");
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 48px 24px;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(ellipse at 20% 20%, rgba(139,115,85,0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(106,154,115,0.03) 0%, transparent 50%);
+}
+
+.container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 1160px;
+    margin: 0 auto;
+    background: var(--bg-surface);
+    border-radius: var(--radius-xl);
+    padding: 48px 56px;
+    box-shadow: 0 1px 3px rgba(26,24,20,0.04), 0 8px 32px rgba(26,24,20,0.06);
+    border: 1px solid var(--border-light);
+}
+
+h1 {
+    font-family: var(--font-display);
+    color: var(--text-heading);
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+}
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 15px;
+    font-weight: 400;
+    margin-bottom: 32px;
+}
+
+/* Upload Area */
+.upload-area {
+    background: var(--bg-canvas);
+    border: 1.5px dashed var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 52px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.35s var(--ease-smooth);
+    margin-bottom: 20px;
+}
+.upload-area:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+}
+.upload-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+.upload-text { color: var(--text-primary); font-size: 16px; margin-bottom: 4px; font-weight: 500; }
+.upload-hint { color: var(--text-tertiary); font-size: 13px; }
+#fileInput { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; opacity: 0; }
+
+/* Buttons */
+.btn {
+    background: var(--text-heading);
+    color: var(--bg-surface);
+    border: none;
+    padding: 12px 24px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s var(--ease-smooth);
+    width: 100%;
+    margin-top: 16px;
+    font-family: var(--font-body);
+    letter-spacing: 0.01em;
+}
+.btn:hover {
+    background: #3A3530;
+    transform: translateY(-1px);
+}
+.btn:active { transform: scale(0.98) translateY(0); }
+.btn:disabled {
+    background: var(--bg-hover);
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-secondary {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1.5px solid var(--border-light);
+}
+.btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.btn-danger { background: var(--danger); }
+.btn-danger:hover { background: #9A4A3E; }
+
+.btn-ghost {
+    background: transparent;
+    color: var(--accent);
+    border: 1.5px solid var(--accent-light);
+    padding: 6px 14px;
+    margin-top: 0;
+    width: auto;
+    font-size: 13px;
+}
+.btn-ghost:hover { background: var(--accent-light); }
+
+/* Progress */
+.progress-container { display: none; margin-top: 28px; }
+.progress-bar { width: 100%; height: 4px; background: var(--border-light); border-radius: 2px; overflow: hidden; margin-bottom: 12px; }
+.progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.4s var(--ease-smooth); border-radius: 2px; }
+.progress-text { text-align: center; color: var(--text-secondary); font-size: 13px; }
+
+.result-container { display: none; margin-top: 32px; }
+
+/* Quality Card */
+.quality-card {
+    background: var(--bg-canvas);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border-light);
+}
+.quality-score { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.quality-score div:first-child div:first-child { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.score-value { font-size: 40px; font-weight: 700; color: var(--text-heading); letter-spacing: -0.03em; }
+.score-grade { padding: 6px 18px; border-radius: 999px; font-size: 15px; font-weight: 600; }
+.grade-a { background: rgba(106,154,115,0.12); color: var(--success); border: 1px solid rgba(106,154,115,0.25); }
+.grade-b { background: rgba(139,115,85,0.12); color: var(--accent); border: 1px solid rgba(139,115,85,0.25); }
+.grade-c { background: rgba(196,155,90,0.12); color: var(--warning); border: 1px solid rgba(196,155,90,0.25); }
+.grade-d { background: rgba(181,88,74,0.12); color: var(--danger); border: 1px solid rgba(181,88,74,0.25); }
+
+.dimension-scores { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.dimension-item { display: flex; justify-content: space-between; padding: 10px 14px; background: var(--bg-surface); border-radius: var(--radius-sm); font-size: 13px; border: 1px solid var(--border-light); color: var(--text-secondary); }
+
+/* Section Title */
+.section-title { font-size: 17px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; letter-spacing: -0.01em; }
+
+.feedback-section { margin-top: 28px; }
+.feedback-input {
+    width: 100%; padding: 12px 16px;
+    border: 1.5px solid var(--border-light);
+    border-radius: var(--radius-md);
+    font-size: 14px; font-family: var(--font-body);
+    resize: vertical; min-height: 80px; margin-bottom: 10px;
+    transition: all 0.2s var(--ease-smooth);
+    background: var(--bg-subtle);
+    color: var(--text-primary);
+}
+.feedback-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+    background: var(--bg-surface);
+}
+.feedback-input::placeholder { color: var(--text-tertiary); }
+
+.content-section { margin-top: 20px; }
+
+.task-info-card, .checklist-card {
+    background: var(--bg-canvas);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
+}
+.task-info-card strong { color: var(--text-primary); }
+
+.checklist-item { background: var(--bg-surface); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 8px; border: 1px solid var(--border-light); }
+.checklist-content { font-size: 13px; color: var(--text-primary); margin-bottom: 6px; line-height: 1.5; }
+.checklist-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-tertiary); }
+
+.improvement-box { background: rgba(106,154,115,0.08); border: 1px solid rgba(106,154,115,0.2); padding: 14px 16px; border-radius: var(--radius-sm); margin-top: 12px; display: none; font-size: 14px; color: var(--success); }
+
+.project-section { margin-top: 28px; background: var(--accent-light); border-radius: var(--radius-lg); padding: 24px; border: 1px solid var(--border-light); }
+.success-message { background: rgba(106,154,115,0.08); border: 1px solid rgba(106,154,115,0.2); padding: 16px 20px; border-radius: var(--radius-sm); margin-top: 14px; font-size: 14px; line-height: 1.6; color: var(--text-primary); }
+
+/* File Tree */
+.file-tree { background: var(--bg-canvas); border-radius: var(--radius-md); padding: 16px; margin-top: 10px; font-family: var(--font-mono); font-size: 13px; border: 1px solid var(--border-light); color: var(--text-secondary); }
+.file-item { padding: 8px 14px; margin: 4px 0; background: var(--bg-surface); border-radius: var(--radius-sm); cursor: pointer; transition: background 0.15s; border: 1px solid var(--border-light); color: var(--text-primary); }
+.file-item:hover { background: var(--bg-hover); }
+.file-content { background: var(--bg-surface); border-radius: var(--radius-md); padding: 16px 20px; margin-top: 10px; display: none; border: 1px solid var(--border-light); color: var(--text-secondary); }
+.file-content.active { display: block; }
+.file-content pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; font-size: 13px; line-height: 1.5; color: var(--text-primary); }
+
+/* Tabs - Paper pill */
+.tab-buttons { display: flex; gap: 4px; margin-bottom: 20px; background: var(--bg-canvas); padding: 4px; border-radius: var(--radius-md); border: 1px solid var(--border-light); }
+.tab-btn { flex: 1; padding: 10px 8px; border: none; border-radius: var(--radius-sm); background: transparent; cursor: pointer; transition: all 0.25s var(--ease-smooth); font-size: 13px; font-weight: 500; color: var(--text-secondary); font-family: var(--font-body); }
+.tab-btn.active { background: var(--bg-surface); color: var(--text-primary); box-shadow: 0 1px 3px rgba(26,24,20,0.06); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.research-doc { background: var(--bg-canvas); border-radius: var(--radius-md); padding: 20px 24px; margin-top: 10px; font-size: 14px; line-height: 1.7; border: 1px solid var(--border-light); color: var(--text-secondary); }
+
+/* Data Upload */
+.data-upload-section { margin-top: 20px; background: var(--bg-canvas); border-radius: var(--radius-lg); padding: 24px; border: 1px solid var(--border-light); }
+
+.data-item { background: var(--bg-surface); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border-light); border-left: 2px solid var(--accent); }
+.data-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.data-item-name { font-weight: 600; color: var(--text-primary); font-size: 14px; }
+.data-item-description { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+.data-item-requirements { font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px; }
+
+.upload-btn { background: var(--accent-light); color: var(--accent); border: 1px solid var(--border-light); padding: 7px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s var(--ease-smooth); }
+.upload-btn:hover { background: var(--accent); color: white; }
+.upload-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.file-input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; opacity: 0; }
+.upload-status { font-size: 12px; color: var(--success); margin-top: 4px; }
+
+.guidance-box { background: var(--accent-light); border: 1px solid var(--border-light); padding: 14px 16px; border-radius: var(--radius-sm); margin-top: 10px; }
+.guidance-title { font-weight: 600; color: var(--accent); margin-bottom: 8px; font-size: 14px; }
+.guidance-content { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+/* Edit Section */
+.edit-section { margin-top: 20px; }
+.edit-box { background: var(--bg-subtle); border: 1.5px solid var(--border-light); border-radius: var(--radius-md); padding: 16px; margin-top: 8px; transition: all 0.2s var(--ease-smooth); }
+.edit-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+
+.json-editor { width: 100%; min-height: 320px; font-family: var(--font-mono); font-size: 13px; border: none; resize: vertical; outline: none; line-height: 1.6; color: var(--text-primary); background: transparent; }
+
+.edit-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.edit-controls .btn { width: auto; padding: 8px 18px; margin-top: 0; font-size: 13px; }
+.edit-controls span { font-size: 11px; color: var(--text-tertiary); }
+
+.dataset-controls { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+
+.delete-btn { background: rgba(181,88,74,0.08); color: var(--danger); border: 1px solid rgba(181,88,74,0.2); padding: 4px 10px; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+.delete-btn:hover { background: rgba(181,88,74,0.15); }
+
+.edit-btn { background: rgba(196,155,90,0.08); color: var(--warning); border: 1px solid rgba(196,155,90,0.2); padding: 4px 10px; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+.edit-btn:hover { background: rgba(196,155,90,0.15); }
+
+.custom-dataset-section { background: rgba(139,115,85,0.04); border-radius: var(--radius-lg); padding: 20px 24px; margin-top: 18px; border: 1px solid var(--border-light); }
+
+/* Modal */
+.edit-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(26,24,20,0.5); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(6px); }
+.edit-modal.active { display: flex; }
+.edit-modal-content { background: var(--bg-surface); border-radius: var(--radius-xl); padding: 32px; max-width: 520px; width: 90%; border: 1px solid var(--border-light); box-shadow: 0 32px 80px rgba(26,24,20,0.15); }
+.edit-modal-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--text-primary); }
+.edit-modal-buttons { display: flex; gap: 10px; margin-top: 20px; }
+.edit-modal-buttons .btn { margin-top: 0; }
+
+/* Pipeline */
+select.feedback-input { appearance: none; background: var(--bg-subtle) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237A7266' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 12px center; padding-right: 36px; color: var(--text-primary); }
+
+#pipelineLog { background: #1A1814; color: #D4C9B8; border-radius: var(--radius-md); padding: 16px; max-height: 520px; overflow-y: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.7; border: 1px solid var(--border-light); }
+
+.source-citation {
+    font-size: 11px; color: var(--accent); line-height: 1.5; margin-top: 4px;
+    padding: 6px 8px; font-style: normal;
+    background: var(--accent-light); border-radius: var(--radius-sm);
+    border-left: 2px solid var(--accent);
+}
+.source-section-label {
+    display: inline-block;
+    font-size: 10px; font-weight: 600;
+    background: var(--accent); color: white;
+    padding: 1px 8px; border-radius: 3px;
+    margin-bottom: 3px;
+}
+
+/* Paper Sources Tab */
+.paper-sources-content { background: var(--bg-canvas); border-radius: var(--radius-md); padding: 16px 20px; margin-top: 10px; font-size: 13px; line-height: 1.6; border: 1px solid var(--border-light); }
+.source-card { background: var(--bg-surface); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 10px; border: 1px solid var(--border-light); border-left: 3px solid var(--accent); }
+.source-card-title { font-weight: 600; color: var(--text-primary); font-size: 13px; margin-bottom: 4px; }
+.source-card-field { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.source-card-quote { font-size: 12px; color: var(--accent); font-style: italic; background: var(--accent-light); padding: 6px 10px; border-radius: 4px; margin-top: 4px; }
+
+/* Paper content styles */
+.paper-content {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+.paper-view-btn.active {
+    background: var(--accent) !important;
+    color: #fff;
+}
+.paper-view-btn.active:hover {
+    background: #7A6548 !important;
+}
+#paperPolishedInner h1 { font-size: 24px; font-weight: 700; margin: 24px 0 12px; color: var(--text-heading); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+#paperPolishedInner h2 { font-size: 20px; font-weight: 600; margin: 20px 0 10px; color: var(--text-heading); }
+#paperPolishedInner h3 { font-size: 17px; font-weight: 600; margin: 16px 0 8px; color: var(--text-primary); }
+#paperPolishedInner h4 { font-size: 15px; font-weight: 600; margin: 12px 0 6px; color: var(--text-primary); }
+#paperPolishedInner p { margin: 8px 0; text-align: justify; }
+#paperPolishedInner blockquote {
+    margin: 12px 0; padding: 10px 16px;
+    background: var(--accent-light);
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-style: italic;
+}
+#paperPolishedInner blockquote p { margin: 4px 0; }
+#paperPolishedInner code {
+    background: rgba(0,0,0,0.06);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+#paperPolishedInner pre {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 12px 0;
+}
+#paperPolishedInner pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+#paperPolishedInner table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+}
+#paperPolishedInner th, #paperPolishedInner td {
+    border: 1px solid var(--border-light);
+    padding: 8px 12px;
+    text-align: left;
+}
+#paperPolishedInner th { background: var(--bg-hover); font-weight: 600; }
+#paperPolishedInner hr { border: none; border-top: 2px solid var(--border-light); margin: 24px 0; }
+#paperPolishedInner ul, #paperPolishedInner ol { margin: 8px 0; padding-left: 24px; }
+#paperPolishedInner li { margin: 4px 0; }
+#paperPolishedInner strong { font-weight: 700; color: var(--text-heading); }
+#paperPolishedInner em { font-style: italic; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+@media (max-width: 768px) {
+    body { padding: 20px 12px; }
+    .container { padding: 24px 20px; }
+    .dimension-scores { grid-template-columns: 1fr; }
+    .tab-buttons { flex-wrap: wrap; }
+    .tab-btn { flex: none; width: calc(50% - 2px); font-size: 12px; padding: 8px 6px; }
+    .upload-area { padding: 32px 20px; }
+    .json-editor { min-height: 200px; }
+}
+</style>
+
+</head>
+<body>
+ <div class="container">
+ <h1> Paper-to-Task</h1>
+ <p class="subtitle">上传PDF论文，自动生成sci_tasks任务</p>
+
+ <!-- 上传区域 -->
+ <div class="upload-area" id="uploadArea">
+ <div class="upload-icon"></div>
+ <div class="upload-text">点击或拖拽上传PDF文件</div>
+ <div class="upload-hint">支持最大16MB的PDF文件</div>
+ </div>
+ <input type="file" id="fileInput" accept=".pdf">
+
+ <button class="btn" id="processBtn" disabled>开始处理</button>
+
+ <!-- 进度显示 -->
+ <div class="progress-container" id="progressContainer">
+ <div class="progress-bar">
+ <div class="progress-fill" id="progressFill"></div>
+ </div>
+ <div class="progress-text" id="progressText">正在处理PDF...</div>
+ </div>
+
+ <!-- 结果显示 -->
+ <div class="result-container" id="resultContainer">
+ <!-- 质量评分 -->
+ <div class="quality-card">
+ <div class="quality-score">
+ <div>
+ <div style="font-size: 14px; color: #666; margin-bottom: 5px;">质量评分</div>
+ <div class="score-value" id="scoreValue">0.73</div>
+ </div>
+ <div class="score-grade" id="scoreGrade">C</div>
+ </div>
+ <div class="dimension-scores" id="dimensionScores"></div>
+ </div>
+
+ <!-- 内容显示 -->
+ <div class="content-section">
+ <!-- 标签页切换 -->
+ <div class="tab-buttons">
+ <button class="tab-btn active" data-tab="overview"> 概览</button>
+ <button class="tab-btn" data-tab="files"> 文件预览</button>
+ <button class="tab-btn" data-tab="sources"> 来源引用</button>
+ <button class="tab-btn" data-tab="research"> 研究详情</button>
+ <button class="tab-btn" data-tab="pipeline"> 流水线</button>
+ <button class="tab-btn" data-tab="config"> 配置</button>
+ <button class="tab-btn" data-tab="paper"> 📄 论文原文</button>
+ </div>
+
+ <!-- 概览标签页 -->
+ <div class="tab-content active" id="overview">
+ <div class="section-title"> 任务描述 <span style="font-size: 11px; color: #4caf50;"> 可改进</span></div>
+ <div class="task-info-card" id="taskInfo"></div>
+
+ <!-- 在线编辑区域 -->
+ <div class="edit-section">
+ <div class="section-title"> 在线编辑 task_info.json</div>
+ <div class="edit-box">
+ <textarea class="json-editor" id="taskInfoEditor" placeholder="编辑JSON内容..."></textarea>
+ <div class="edit-controls">
+ <button class="btn" id="saveTaskInfoBtn" style="width: auto; padding: 8px 16px;"> 保存修改</button>
+ <span style="font-size: 11px; color: #666;">修改后点击保存，将更新内存中的内容</span>
+ </div>
+ </div>
+ </div>
+
+ <div class="section-title"> 评分项 <span style="font-size: 11px; color: #4caf50;"> 可改进</span></div>
+ <div class="checklist-card" id="checklistItems"></div>
+
+ <!-- 在线编辑区域 -->
+ <div class="edit-section">
+ <div class="section-title"> 在线编辑 checklist.json</div>
+ <div class="edit-box">
+ <textarea class="json-editor" id="checklistEditor" placeholder="编辑JSON内容..."></textarea>
+ <div class="edit-controls">
+ <button class="btn" id="saveChecklistBtn" style="width: auto; padding: 8px 16px;"> 保存修改</button>
+ <span style="font-size: 11px; color: #666;">修改后点击保存，将更新内存中的内容</span>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- 文件预览标签页 -->
+ <div class="tab-content" id="files">
+ <div class="section-title"> 项目文件结构</div>
+ <div class="file-tree" id="fileTree">
+ <div style="text-align: center; color: #999; padding: 20px;">
+ 创建项目后将显示完整文件结构
+ </div>
+ </div>
+
+ <div class="section-title" style="margin-top: 20px;"> 文件内容预览</div>
+ <div class="file-content" id="fileContent">
+ <div style="text-align: center; color: #999; padding: 20px;">
+ 点击上方文件可查看内容
+ </div>
+ </div>
+
+ <!-- 数据上传区域 -->
+ <div class="data-upload-section" id="dataUploadSection" style="display: none;">
+ <div class="section-title"> 数据准备</div>
+ <div id="dataGuidanceBox" class="guidance-box">
+ <div class="guidance-title"> 数据准备指导</div>
+ <div class="guidance-content">
+ <div> 系统已识别到以下数据集需求，请根据指导准备相应数据：</div>
+ <ul id="dataGuidanceList" style="margin-top: 8px; padding-left: 20px;"></ul>
+ </div>
+ </div>
+
+ <div class="section-title" style="margin-top: 15px;"> 数据文件上传</div>
+ <div id="dataUploadList">
+ <div style="text-align: center; color: #999; padding: 20px;">
+ 数据集列表将在此处显示
+ </div>
+ </div>
+
+ <!-- 自定义数据集区域 -->
+ <div class="custom-dataset-section">
+ <div class="section-title"> 添加自定义数据集</div>
+ <div style="font-size: 12px; color: #666; margin-bottom: 10px;">
+ 除了系统识别的数据集，您还可以添加自定义的数据集
+ </div>
+ <div class="edit-box">
+ <input type="text" class="feedback-input" id="customDatasetName"
+ placeholder="数据集名称 (例如: MyCustomData)"
+ style="min-height: auto; margin-bottom: 8px;">
+ <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
+ 路径将自动设置为 <code>data/{name}</code>
+ </div>
+ <textarea class="feedback-input" id="customDatasetDesc"
+ placeholder="数据集描述 (例如: 用于验证的内部数据集)"
+ style="min-height: 60px; margin-bottom: 8px;"></textarea>
+ <div class="edit-controls">
+ <button class="btn" id="addCustomDatasetBtn" style="width: auto; padding: 8px 16px;"> 添加数据集</button>
+ <button class="btn" id="uploadCustomDatasetBtn" style="width: auto; padding: 8px 16px; display: none;"> 上传文件</button>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- 来源引用标签页 -->
+ <div class="tab-content" id="sources">
+ <div class="section-title"> 论文原文依据</div>
+ <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
+ 以下展示 AI 生成内容所依据的论文原文摘录，确保信息的可追溯性和可信度。
+ </div>
+ <div class="paper-sources-content" id="paperSources">
+ <div style="text-align: center; color: var(--text-tertiary); padding: 20px;">
+ 论文来源信息将在此处显示
+ </div>
+ </div>
+ </div>
+
+ <!-- 研究详情标签页 -->
+ <div class="tab-content" id="research">
+ <div class="section-title"> 详细研究文档</div>
+ <div class="research-doc" id="researchDoc">
+ <div style="text-align: center; color: #999; padding: 20px;">
+ 研究详情将在此处显示
+ </div>
+ </div>
+ </div>
+
+ <!-- 流水线标签页 -->
+ <div class="tab-content" id="pipeline">
+ <div class="section-title"> sci_tasks 流水线</div>
+ <div style="font-size: 13px; color: #666; margin-bottom: 15px;">
+ 运行 <code>launch_discovery.py</code> 启动科研发现流水线，实时监控输出
+ </div>
+
+ <div id="pipelineSetup">
+ <div class="edit-box">
+ <div style="margin-bottom: 10px;">
+ <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px;"> 任务路径：</label>
+ <div style="display: flex; gap: 8px;">
+ <select class="feedback-input" id="pipelineTaskPath"
+ style="min-height: auto; flex: 1;">
+ <option value="">-- 请选择任务 --</option>
+ </select>
+ <button class="btn" id="refreshTaskListBtn"
+ style="width: auto; padding: 6px 12px; font-size: 12px;"
+ title="刷新任务列表"></button>
+ </div>
+ </div>
+ <div style="margin-bottom: 10px;">
+ <label style="display: block; margin-bottom: 6px; font-weight: bold; font-size: 13px;"> 执行参数：</label>
+ <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+ <div style="flex: 1; min-width: 200px;">
+ <label style="font-size: 12px; font-weight: 500; display: block; margin-bottom: 2px;">执行模式</label>
+ <div style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px;">experiment = 运行实验并生成报告; report = 仅生成报告</div>
+ <select class="feedback-input" id="pipelineMode"
+ style="min-height: auto; font-size: 12px;">
+ <option value="experiment">experiment（运行实验）</option>
+ <option value="report">report（仅生成报告）</option>
+ </select>
+ </div>
+ <div style="flex: 1; min-width: 200px;">
+ <label style="font-size: 12px; font-weight: 500; display: block; margin-bottom: 2px;">实验后端</label>
+ <div style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px;">AI后端引擎，决定代码生成和实验执行方式</div>
+ <select class="feedback-input" id="pipelineBackend"
+ style="min-height: auto; font-size: 12px;">
+ <option value="claudecode">claudecode（Claude Code）</option>
+ <option value="openhands">openhands（OpenHands）</option>
+ <option value="iflow">iflow（IFlow）</option>
+ </select>
+ </div>
+ <div style="flex: 1; min-width: 200px;">
+ <label style="font-size: 12px; font-weight: 500; display: block; margin-bottom: 2px;">输出目录</label>
+ <div style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px;">结果保存路径，留空使用默认 results/{task_name} 目录</div>
+ <input type="text" class="feedback-input" id="pipelineOutputDir"
+ placeholder="留空使用默认路径"
+ style="min-height: auto; font-size: 12px;">
+ </div>
+ </div>
+ </div>
+ <div id="pipelineAdvanced" style="margin-bottom: 10px; display: none;">
+ <label style="display: block; margin-bottom: 6px; font-weight: bold; font-size: 13px;"> 高级参数：</label>
+ <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px;">
+
+ <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+ <input type="checkbox" id="pipelineSkipIdea"> 跳过想法生成
+ <span style="font-size: 10px; color: var(--text-tertiary);">（使用已有想法，需配合 idea_path）</span>
+ </label>
+
+ <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+ <input type="checkbox" id="pipelineEnableRefCode" style="flex-shrink: 0;">
+ <label for="pipelineEnableRefCode" style="font-size: 12px; font-weight: 500; flex-shrink: 0; cursor: pointer;">基线代码路径</label>
+ <input type="text" class="feedback-input" id="pipelineRefCodePath"
+ placeholder="留空使用默认 {task_dir}/experiment.py"
+ style="min-height: auto; font-size: 12px; flex: 1; min-width: 200px; margin-bottom: 0; background: var(--bg-subtle);">
+ <span style="font-size: 10px; color: var(--text-tertiary);">默认: {task_dir}/experiment.py</span>
+ </div>
+
+ <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+ <input type="checkbox" id="pipelineEnableConfig" style="flex-shrink: 0;">
+ <label for="pipelineEnableConfig" style="font-size: 12px; font-weight: 500; flex-shrink: 0; cursor: pointer;">配置文件</label>
+ <input type="text" class="feedback-input" id="pipelineConfigPath"
+ placeholder="配置文件的路径"
+ style="min-height: auto; font-size: 12px; flex: 1; min-width: 200px; margin-bottom: 0; background: var(--bg-subtle);">
+ </div>
+
+ <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+ <input type="checkbox" id="pipelineEnableIdeaPath" style="flex-shrink: 0;">
+ <label for="pipelineEnableIdeaPath" style="font-size: 12px; font-weight: 500; flex-shrink: 0; cursor: pointer;">想法路径</label>
+ <input type="text" class="feedback-input" id="pipelineIdeaPath"
+ placeholder="已有想法的JSON文件路径（跳过生成时使用）"
+ style="min-height: auto; font-size: 12px; flex: 1; min-width: 200px; margin-bottom: 0; background: var(--bg-subtle);">
+ </div>
+
+ <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+ <input type="checkbox" id="pipelineEnableOfflineFeedback" style="flex-shrink: 0;">
+ <label for="pipelineEnableOfflineFeedback" style="font-size: 12px; font-weight: 500; flex-shrink: 0; cursor: pointer;">离线反馈文件</label>
+ <input type="text" class="feedback-input" id="pipelineOfflineFeedback"
+ placeholder="离线反馈JSON文件路径"
+ style="min-height: auto; font-size: 12px; flex: 1; min-width: 200px; margin-bottom: 0; background: var(--bg-subtle);">
+ </div>
+
+ <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+ <input type="checkbox" id="pipelineEnableResume" style="flex-shrink: 0;">
+ <label for="pipelineEnableResume" style="font-size: 12px; font-weight: 500; flex-shrink: 0; cursor: pointer;">恢复之前运行</label>
+ <input type="text" class="feedback-input" id="pipelineResumePath"
+ placeholder="已有 launch 目录路径"
+ style="min-height: auto; font-size: 12px; flex: 1; min-width: 200px; margin-bottom: 0; background: var(--bg-subtle);">
+ <span style="font-size: 10px; color: var(--text-tertiary);">从上次中断处继续执行</span>
+ </div>
+
+ </div>
+ </div>
+ <div style="margin-bottom: 10px;">
+ <button class="btn" id="toggleAdvancedBtn"
+ style="width: auto; padding: 4px 10px; font-size: 11px; background: none; color: #667eea; border: 1px solid #667eea;"> 显示高级参数</button>
+ </div>
+ <div class="edit-controls">
+ <button class="btn" id="startPipelineBtn" style="width: auto; padding: 10px 24px;"> 启动流水线</button>
+ <button class="btn" id="stopPipelineBtn" style="width: auto; padding: 10px 24px; background: #f44336; display: none;"> 停止</button>
+ <span style="font-size: 11px; color: #666;">启动后可在下方实时查看输出</span>
+ </div>
+ </div>
+ </div>
+
+ <div id="pipelineMonitor" style="display: none; margin-top: 15px;">
+ <div class="section-title" style="margin-top: 15px;">
+ 流水线状态
+ <span id="pipelineStatusBadge" style="font-size: 12px; padding: 4px 10px; border-radius: 10px; margin-left: 10px;">⏳ 运行中</span>
+ </div>
+
+ <div style="display: flex; gap: 20px; margin: 10px 0; font-size: 12px; color: #666;">
+ <div> 运行时间: <span id="pipelineElapsed">00:00</span></div>
+ <div>⏱ 启动时间: <span id="pipelineStartTime">--:--:--</span></div>
+ </div>
+
+ <div class="section-title" style="margin-top: 15px;"> 实时输出日志</div>
+ <div id="pipelineLog" style="background: #1e1e1e; color: #d4d4d4; border-radius: 10px; padding: 15px; max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6;">
+ <div style="text-align: center; color: #666; padding: 20px;">等待输出...</div>
+ </div>
+
+ <div class="edit-controls" style="margin-top: 10px;">
+ <button class="btn" id="clearLogBtn" style="width: auto; padding: 8px 16px; background: #666;"> 清空日志</button>
+ <span id="logLineCount" style="font-size: 11px; color: #999;">0 行</span>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ 	 <!-- 配置标签页 -->
+	 <div class="tab-content" id="config">
+	 <div class="section-title"> 配置文件管理</div>
+	 <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+	 修改 <code>config/default_config.yaml</code> 中的关键参数。保存后需重启流水线生效。
+	 </div>
+	 <div id="configContainer">
+	 <div style="text-align: center; color: var(--text-tertiary); padding: 30px;">
+	 加载配置中...
+	 </div>
+	 </div>
+	 <div class="edit-controls" style="margin-top: 16px; justify-content: flex-start; gap: 10px;">
+	 <button class="btn" id="saveConfigBtn" style="width: auto; padding: 10px 28px;"> 保存配置</button>
+	 <button class="btn" id="reloadConfigBtn" style="width: auto; padding: 10px 28px; background: var(--text-secondary);"> 重新加载</button>
+	 <span id="configSaveStatus" style="font-size: 12px; color: var(--text-tertiary);"></span>
+	 </div>
+	 </div>
+
+	 <!-- 论文原文标签页 -->
+	 <div class="tab-content" id="paper">
+	 <div class="section-title"> 📄 论文原文</div>
+	 <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+	 查看论文PDF解析后的原始Markdown内容，或使用AI润色获得更美观的排版。
+	 </div>
+
+	 <!-- 切换按钮 -->
+	 <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+	 <button class="btn paper-view-btn active" id="paperRawBtn" onclick="switchPaperView('raw')" style="width: auto; padding: 6px 18px; font-size: 13px; margin-top: 0;"> 原文</button>
+	 <button class="btn paper-view-btn" id="paperPolishedBtn" onclick="switchPaperView('polished')" style="width: auto; padding: 6px 18px; font-size: 13px; margin-top: 0; background: var(--text-secondary);"> AI润色</button>
+	 <span id="paperLoading" style="display: none; font-size: 13px; color: var(--accent); margin-left: 8px; align-self: center;">⏳ AI润色中...</span>
+	 <span id="paperError" style="display: none; font-size: 13px; color: var(--danger); margin-left: 8px; align-self: center;"></span>
+	 </div>
+
+	 <!-- 内容区域 -->
+	 <div id="paperRawContent" class="paper-content" style="display: block;">
+	 <div id="paperRawInner" style="font-family: var(--font-mono); font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-wrap: break-word; padding: 20px; background: var(--bg-canvas); border-radius: var(--radius-md); border: 1px solid var(--border-light); color: var(--text-primary);">
+	 上传并处理PDF后，论文原文将在此处显示
+	 </div>
+	 </div>
+	 <div id="paperPolishedContent" class="paper-content" style="display: none;">
+	 <div id="paperPolishedInner" style="font-family: var(--font-body); font-size: 14px; line-height: 1.9; padding: 24px; background: var(--bg-canvas); border-radius: var(--radius-md); border: 1px solid var(--border-light); color: var(--text-primary);">
+	 点击"AI润色"按钮，使用大模型优化排版
+	 </div>
+	 </div>
+	 </div>
+	 <!-- 反馈改进 -->
+ <div class="feedback-section">
+ <div class="section-title"> 提供反馈改进</div>
+ <div style="font-size: 12px; color: #666; margin-bottom: 10px; padding: 8px; background: #fff3e0; border-radius: 6px;">
+ <strong>可改进范围</strong>：task_info.json（任务描述、数据集描述）和 checklist.json（评分项内容、评估标准）
+ </div>
+ <textarea class="feedback-input" id="feedbackInput"
+ placeholder="例如：checklist的评分项需要更具体，要包含具体的模型名称和准确率指标..."></textarea>
+ <button class="btn" id="refineBtn">提交反馈并改进</button>
+ <div class="improvement-box" id="improvementBox"></div>
+ </div>
+
+ <!-- 创建项目 -->
+ <div class="project-section">
+ <div class="section-title"> 创建项目</div>
+ <input type="text" class="feedback-input" id="taskNameInput"
+ placeholder="项目名称（留空使用默认名称）" style="min-height: auto;">
+ <button class="btn" id="createProjectBtn">创建sci_tasks项目</button>
+ <div class="success-message" id="successMessage" style="display: none;"></div>
+ </div>
+ </div>
+ </div>
+
+ <script>
+ let currentTaskId = null;
+ let currentFile = null;
+let currentRawMarkdown = "";
+let currentPolishedMarkdown = null;
+
+ // 文件上传处理
+ const uploadArea = document.getElementById('uploadArea');
+ const fileInput = document.getElementById('fileInput');
+ const processBtn = document.getElementById('processBtn');
+
+ uploadArea.addEventListener('click', () => fileInput.click());
+ uploadArea.addEventListener('dragover', (e) => {
+ e.preventDefault();
+ uploadArea.style.background = '#eef1ff';
+ });
+ uploadArea.addEventListener('dragleave', () => {
+ uploadArea.style.background = '#f8f9ff';
+ });
+ uploadArea.addEventListener('drop', (e) => {
+ e.preventDefault();
+ uploadArea.style.background = '#f8f9ff';
+ if (e.dataTransfer.files.length) {
+ handleFile(e.dataTransfer.files[0]);
+ }
+ });
+
+ fileInput.addEventListener('change', (e) => {
+ if (e.target.files.length) {
+ handleFile(e.target.files[0]);
+ }
+ });
+
+ function handleFile(file) {
+ if (!file.name.endsWith('.pdf')) {
+ alert('请上传PDF文件');
+ return;
+ }
+ currentFile = file;
+ document.querySelector('.upload-text').textContent = file.name;
+ processBtn.disabled = false;
+ }
+
+ // 处理PDF
+ processBtn.addEventListener('click', async () => {
+ if (!currentFile) return;
+
+ const formData = new FormData();
+ formData.append('file', currentFile);
+
+ showProgress(true);
+ updateProgress(10, '正在上传文件...');
+
+ try {
+ const response = await fetch('/upload', {
+ method: 'POST',
+ body: formData
+ });
+
+ const data = await response.json();
+
+ if (data.success) {
+ currentTaskId = data.task_id;
+ updateProgress(100, '处理完成！');
+ setTimeout(() => {
+ showProgress(false);
+ displayResult(data.result);
+ }, 500);
+ } else {
+ alert('处理失败: ' + data.error);
+ showProgress(false);
+ }
+ } catch (error) {
+ alert('处理失败: ' + error);
+ showProgress(false);
+ }
+ });
+
+ // 显示进度
+ function showProgress(show) {
+ document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
+ document.getElementById('resultContainer').style.display = show ? 'none' : 'none';
+ }
+
+ function updateProgress(percent, text) {
+ document.getElementById('progressFill').style.width = percent + '%';
+ document.getElementById('progressText').textContent = text;
+ }
+
+ // 显示结果
+ function displayResult(result) {
+ document.getElementById('resultContainer').style.display = 'block';
+
+ // 质量评分（百分制）
+ const score = result.quality.score;
+ document.getElementById('scoreValue').textContent = typeof score === 'number' ? (score <= 1 ? (score * 100).toFixed(1) : score.toFixed(1)) : score;
+
+ const gradeElement = document.getElementById('scoreGrade');
+ gradeElement.textContent = result.quality.grade;
+ gradeElement.className = 'score-grade grade-' + result.quality.grade.toLowerCase();
+
+ // 维度评分
+ const dimensionScores = document.getElementById('dimensionScores');
+ dimensionScores.innerHTML = '';
+ const dimensionNames = {
+ 'completeness': '完整性',
+ 'accuracy': '准确性',
+ 'clarity': '清晰度',
+ 'feasibility': '可行性'
+ };
+ for (const [key, value] of Object.entries(result.quality.dimension_scores)) {
+ const item = document.createElement('div');
+ item.className = 'dimension-item';
+ item.innerHTML = `
+ <span>${dimensionNames[key] || key}</span>
+ <span>${value.toFixed(1)}/100</span>
+ `;
+ dimensionScores.appendChild(item);
+ }
+
+ // 任务信息
+ // 生成数据文件列表（含来源）
+ const dataItems = (result.task_info.data || []).map((d, i) => {
+ const sectionLabel = d._source ? (d._source.match(/^【([^】]+)】/) ? d._source.match(/^【([^】]+)】/)[1] : '') : '';
+ const sourceQuote = d._source ? d._source.replace(/^【[^】]+】/, '').trim() : '';
+ const sourceText = d._source ? `<div class="source-citation">` + (sectionLabel ? `<span class="source-section-label">${sectionLabel}</span> ` : '') + sourceQuote + `</div>` : '';
+ return '<div style="margin-top: 8px; padding: 8px 12px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-light);">' +
+ '<div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">[' + (i+1) + '] ' + d.name + '</div>' +
+ '<div style="font-size: 12px; color: var(--text-secondary);">路径: ' + (d.path || '') + '</div>' +
+ '<div style="font-size: 12px; color: var(--text-secondary);">' + (d.description || '') + '</div>' +
+ sourceText + '</div>';
+ }).join('');
+
+ // 任务描述来源
+ const taskSourceHtml = result.task_info.task_source
+ ? formatSourceCitation(result.task_info.task_source)
+ : (result.task_info._source ? formatSourceCitation(result.task_info._source) : '');
+
+ document.getElementById('taskInfo').innerHTML = `
+ <div style="font-size: 14px; color: var(--text-primary);">
+ <strong>任务:</strong> ${result.task_info.task || '无'}
+ ${taskSourceHtml}
+ </div>
+ <div style="margin-top: 12px;">
+ <strong style="font-size: 13px; color: var(--text-primary);">数据文件:</strong> ${result.task_info.data?.length || 0} 个
+ ${dataItems}
+ </div>
+ `;
+
+ // 显示研究详情
+ if (result.research_doc) {
+ document.getElementById('researchDoc').innerHTML = `
+ <div style="white-space: pre-wrap; line-height: 1.8;">${result.research_doc}</div>
+ `;
+ }
+
+ // 评分项
+ const checklistItems = document.getElementById('checklistItems');
+ checklistItems.innerHTML = '';
+ if (result.checklist && result.checklist.length > 0) {
+ result.checklist.forEach((item, index) => {
+ const div = document.createElement('div');
+ div.className = 'checklist-item';
+ const itemSectionLabel = item._source ? (item._source.match(/^【([^】]+)】/) ? item._source.match(/^【([^】]+)】/)[1] : '') : '';
+ const itemSourceQuote = item._source ? item._source.replace(/^【[^】]+】/, '').trim() : '';
+ const srcHtml = item._source ? `<div class="source-citation">` + (itemSectionLabel ? `<span class="source-section-label">${itemSectionLabel}</span> ` : '') + itemSourceQuote + `</div>` : '';
+ div.innerHTML = `
+ <div class="checklist-content">${index + 1}. ${item.content.substring(0, 100)}...</div>
+ ${srcHtml}
+ <div class="checklist-meta">
+ <span>权重: ${(item.weight * 100).toFixed(0)}%</span>
+ </div>
+ `;
+ checklistItems.appendChild(div);
+ });
+ } else {
+ checklistItems.innerHTML = '<div style="text-align: center; color: #999;">暂无评分项</div>';
+ }
+
+ // 显示文件结构预览
+ displayFileStructure(result);
+
+ // 显示数据上传区域
+ displayDataUploadSection(result);
+
+ // 初始化编辑器内容
+ currentTaskInfo = result.task_info || {};
+ currentChecklist = result.checklist || [];
+ currentDatasets = result.task_info?.data || [];
+ currentPaperSources = result.paper_sources || {};
+ currentResearchInfo = result.research_info || {};
+ currentRawMarkdown = result.raw_markdown || "";
+currentPolishedMarkdown = null;
+storedResult = result;  // store for access from save handlers
+
+ // 填充编辑器
+ document.getElementById('taskInfoEditor').value = JSON.stringify(currentTaskInfo, null, 2);
+ document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
+
+ // 显示论文来源引用
+ displayPaperSources(result);
+ }
+
+ // 显示数据上传区域
+ function displayDataUploadSection(result) {
+ const dataUploadSection = document.getElementById('dataUploadSection');
+ const taskInfo = result.task_info || {};
+ const datasets = taskInfo.data || [];
+
+ if (datasets.length === 0) {
+ dataUploadSection.style.display = 'none';
+ return;
+ }
+
+ dataUploadSection.style.display = 'block';
+
+ // 显示数据指导
+ const guidanceList = document.getElementById('dataGuidanceList');
+ guidanceList.innerHTML = `
+ <li>系统识别到 <strong>${datasets.length}</strong> 个数据集需求</li>
+ <li>请为每个数据集准备相应文件</li>
+ <li>点击下方上传按钮提交数据文件</li>
+ <li>创建项目后，这些文件将被放置到相应的data目录中</li>
+ `;
+
+ // 显示数据上传列表
+ const dataUploadList = document.getElementById('dataUploadList');
+ dataUploadList.innerHTML = '';
+
+ datasets.forEach((dataset, index) => {
+ const datasetDiv = document.createElement('div');
+ datasetDiv.className = 'data-item';
+ const safeDatasetName = dataset.name || `dataset_${index + 1}`;
+ const isCustom = dataset.is_custom || false;
+
+ datasetDiv.innerHTML = `
+ <div class="data-item-header">
+ <div class="data-item-name"> ${safeDatasetName} ${isCustom ? '<span style="font-size: 10px; background: #f3e5f5; padding: 2px 6px; border-radius: 3px;">自定义</span>' : ''}</div>
+ <div class="dataset-controls">
+ <button class="upload-btn" onclick="uploadDataFile('${index}')" id="uploadBtn_${index}">
+ 上传文件
+ </button>
+ <button class="edit-btn" onclick="editDataset('${index}')" id="editBtn_${index}">
+ 编辑
+ </button>
+ <button class="delete-btn" onclick="deleteDataset('${index}')" id="deleteBtn_${index}">
+ 删除
+ </button>
+ <input type="file" class="file-input" id="fileInput_${index}" onchange="handleDataFileUpload('${index}', '${safeDatasetName}')">
+ </div>
+ </div>
+ <div class="data-item-description">
+ ${dataset.description || '数据集描述'}
+ </div>
+ <div class="data-item-requirements">
+ 路径: ${dataset.path || 'data/' + safeDatasetName}
+ </div>
+ <div class="upload-status" id="uploadStatus_${index}"></div>
+ `;
+ dataUploadList.appendChild(datasetDiv);
+ });
+ }
+
+ // 格式化来源引用：解析【章节】标签并生成HTML
+ function formatSourceCitation(sourceText) {
+ if (!sourceText) return '';
+ const sectionMatch = sourceText.match(/^【([^】]+)】/);
+ if (sectionMatch) {
+ const label = sectionMatch[1];
+ const quote = sourceText.replace(/^【[^】]+】/, '').trim();
+ return '<div class="source-citation"><span class="source-section-label">' + label + '</span> ' + quote + '</div>';
+ }
+ return '<div class="source-citation">' + sourceText + '</div>';
+ }
+
+ // 显示论文来源引用
+ function displayPaperSources(result) {
+ const sourcesContainer = document.getElementById('paperSources');
+ const paperSources = result.paper_sources || {};
+ const checklist = result.checklist || [];
+ const taskInfo = result.task_info || {};
+
+ let html = '';
+
+ // 收集所有来源
+ const sourceEntries = [];
+
+ // 任务描述来源
+ if (taskInfo.task_source) {
+ sourceEntries.push({ title: '任务描述', field: taskInfo.task, quote: taskInfo.task_source });
+ } else if (taskInfo._source) {
+ sourceEntries.push({ title: '任务描述', field: taskInfo.task, quote: taskInfo._source });
+ }
+
+ // 数据文件来源
+ if (taskInfo.data) {
+ taskInfo.data.forEach((d, i) => {
+ if (d._source) {
+ sourceEntries.push({ title: '数据集', field: d.name, quote: d._source });
+ }
+ });
+ }
+
+ // Checklist 来源
+ if (checklist) {
+ checklist.forEach((item, i) => {
+ if (item._source) {
+ sourceEntries.push({ title: '评分项', field: item.content.substring(0, 80) + '...', quote: item._source });
+ }
+ });
+ }
+
+ // 研究信息来源
+ if (paperSources.background) {
+ sourceEntries.push({ title: '研究背景', field: result.research_info?.background || '', quote: paperSources.background });
+ }
+ if (paperSources.research_goal) {
+ sourceEntries.push({ title: '研究目标', field: result.research_info?.research_goal || '', quote: paperSources.research_goal });
+ }
+ if (paperSources.hypothesis) {
+ sourceEntries.push({ title: '研究假设', field: result.research_info?.hypothesis || '', quote: paperSources.hypothesis });
+ }
+ if (paperSources.methods) {
+ sourceEntries.push({ title: '方法概述', field: result.research_info?.methods?.main_methods || '', quote: paperSources.methods });
+ }
+ if (paperSources.key_findings && Array.isArray(paperSources.key_findings)) {
+ paperSources.key_findings.forEach((kf, i) => {
+ sourceEntries.push({ title: '关键发现', field: (result.research_info?.key_findings || [])[i] || '', quote: kf });
+ });
+ }
+ if (paperSources.datasets && Array.isArray(paperSources.datasets)) {
+ paperSources.datasets.forEach(ds => {
+ sourceEntries.push({ title: '数据集来源', field: ds.name, quote: ds.source });
+ });
+ }
+
+ if (sourceEntries.length === 0) {
+ html = '<div style="text-align: center; color: var(--text-tertiary); padding: 20px;">暂无论文原文引用信息。论文内容可能未提供明确的原文依据。</div>';
+ } else {
+ html = '<div style="margin-bottom: 10px; font-size: 12px; color: var(--text-secondary);">共 ' + sourceEntries.length + ' 条原文引用</div>';
+ sourceEntries.forEach((entry, i) => {
+ html += '<div class="source-card">' +
+ '<div class="source-card-title">' + (i+1) + '. [' + entry.title + ']</div>' +
+ '<div class="source-card-field">' + (entry.field ? escapeHtml(entry.field.substring(0, 200)) : '') + '</div>' +
+ formatSourceCitation(entry.quote) +
+ '</div>';
+ });
+ }
+
+ sourcesContainer.innerHTML = html;
+ }
+
+ 
+// 切换论文原文/润色视图
+function switchPaperView(view) {
+    document.getElementById('paperRawBtn').classList.toggle('active', view === 'raw');
+    document.getElementById('paperPolishedBtn').classList.toggle('active', view === 'polished');
+    document.getElementById('paperRawContent').style.display = view === 'raw' ? 'block' : 'none';
+    document.getElementById('paperPolishedContent').style.display = view === 'polished' ? 'block' : 'none';
+
+    // 如果切换到原文，填入内容
+    if (view === 'raw' && currentRawMarkdown) {
+        document.getElementById('paperRawInner').textContent = currentRawMarkdown;
+    }
+
+    // 如果切换到润色版且没有内容，调用润色API
+    if (view === 'polished') {
+        if (!currentRawMarkdown) {
+            document.getElementById('paperError').style.display = 'block';
+            document.getElementById('paperError').textContent = '没有论文原文内容，请先上传PDF';
+            return;
+        }
+        if (!currentPolishedMarkdown) {
+            polishPaper();
+        }
+    }
+}
+
+// 调用AI润色论文
+async function polishPaper() {
+    const loadingEl = document.getElementById('paperLoading');
+    const errorEl = document.getElementById('paperError');
+    const contentEl = document.getElementById('paperPolishedInner');
+
+    loadingEl.style.display = 'inline';
+    errorEl.style.display = 'none';
+
+    try {
+        const response = await fetch('/polish_paper', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: currentTaskId })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            currentPolishedMarkdown = data.polished;
+            contentEl.innerHTML = renderSimpleMarkdown(data.polished);
+        } else {
+            errorEl.textContent = '润色失败: ' + (data.error || '未知错误');
+            errorEl.style.display = 'block';
+        }
+    } catch (error) {
+        errorEl.textContent = '请求失败: ' + error;
+        errorEl.style.display = 'block';
+    } finally {
+        loadingEl.style.display = 'none';
+    }
+}
+
+// 简易Markdown渲染器
+function renderSimpleMarkdown(md) {
+    if (!md) return '';
+    var html = md;
+
+    // 代码块
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>');
+    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+
+    // 行内代码
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // 标题
+    html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // 引用块
+    html = html.replace(/^> (.+)$/gm, '<blockquote><p>$1</p></blockquote>');
+
+    // 水平线
+    html = html.replace(/^---$/gm, '<hr>');
+    html = html.replace(/^\*\*\*$/gm, '<hr>');
+
+    // 粗体和斜体
+    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // 图片
+    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%;">');
+
+    // 链接
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    // 无序列表
+    html = html.replace(/^[\*\-] (.+)$/gm, '<li>$1</li>');
+
+    // 有序列表
+    html = html.replace(/^\d+\.\s(.+)$/gm, '<li>$1</li>');
+
+    // 表格（简化处理）
+    html = html.replace(/\|(.+)\|/g, function(m, content) {
+        var cells = content.split('|').map(function(c) { return c.trim(); });
+        return '<tr><td>' + cells.join('</td><td>') + '</td></tr>';
+    });
+
+    // 段落处理
+    var lines = html.split('\n');
+    var result = '';
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) { result += '\n'; continue; }
+        if (line.startsWith('<h') || line.startsWith('<pre') || line.startsWith('<blockquote') ||
+            line.startsWith('<hr') || line.startsWith('<ul') || line.startsWith('<ol') ||
+            line.startsWith('<table') || line.startsWith('<tr') || line.startsWith('<th') ||
+            line.startsWith('<td') || line.startsWith('<li') || line.startsWith('<img') ||
+            line.startsWith('<p') ||
+            line.endsWith('</pre>') || line.endsWith('</blockquote>') ||
+            line.endsWith('</ul>') || line.endsWith('</ol>') || line.endsWith('</table>') ||
+            line === '<hr>') {
+            result += line + '\n';
+            continue;
+        }
+        result += '<p>' + line + '</p>\n';
+    }
+
+    // 清理嵌套的ul
+    result = result.replace(/(<li>.*<\/li>\n?)+/g, function(m) { return '<ul>' + m + '</ul>'; });
+    while (result.indexOf('<ul><ul>') >= 0) result = result.replace('<ul><ul>', '<ul>');
+    while (result.indexOf('</ul></ul>') >= 0) result = result.replace('</ul></ul>', '</ul>');
+
+    return result;
+}
+
+
+// HTML转义辅助函数
+ function escapeHtml(text) {
+ if (!text) return '';
+ const div = document.createElement('div');
+ div.textContent = text;
+ return div.innerHTML;
+ }
+
+ // 上传数据文件
+ function uploadDataFile(index) {
+ const fileInput = document.getElementById(`fileInput_${index}`);
+ if (fileInput) {
+ fileInput.click();
+ }
+ }
+
+ // 处理数据文件上传
+ async function handleDataFileUpload(index, datasetName) {
+ const fileInput = document.getElementById(`fileInput_${index}`);
+ if (!fileInput || !fileInput.files || !fileInput.files.length) return;
+ const file = fileInput.files[0];
+
+ if (!file) return;
+
+ const uploadBtn = document.getElementById(`uploadBtn_${index}`);
+ const uploadStatus = document.getElementById(`uploadStatus_${index}`);
+
+ uploadBtn.disabled = true;
+ uploadBtn.textContent = '⏳ 上传中...';
+ uploadStatus.textContent = '';
+
+ try {
+ const formData = new FormData();
+ formData.append('file', file);
+ formData.append('task_id', currentTaskId);
+ formData.append('dataset_name', datasetName);
+
+ const response = await fetch('/upload_data_file', {
+ method: 'POST',
+ body: formData
+ });
+
+ const data = await response.json();
+
+ if (data.success) {
+ uploadBtn.textContent = ' 已上传';
+ uploadStatus.textContent = ` ${data.message} (${(data.file_info.size / 1024 / 1024).toFixed(2)} MB)`;
+ uploadStatus.style.color = '#4caf50';
+ } else {
+ uploadBtn.disabled = false;
+ uploadBtn.textContent = ' 上传文件';
+ uploadStatus.textContent = ` ${data.error}`;
+ uploadStatus.style.color = '#f44336';
+ }
+
+ } catch (error) {
+ uploadBtn.disabled = false;
+ uploadBtn.textContent = ' 上传文件';
+ uploadStatus.textContent = ` 上传失败: ${error}`;
+ uploadStatus.style.color = '#f44336';
+ }
+ }
+
+ // 显示文件结构
+ function displayFileStructure(result) {
+ const fileTree = document.getElementById('fileTree');
+
+ const projectName = 'Science_XXX';
+ const taskInfo = result.task_info || {};
+ const checklist = result.checklist || [];
+ const researchDoc = result.research_doc || '';
+
+ let html = `
+ <div style="font-weight: bold; margin-bottom: 10px;"> ${projectName}/</div>
+ <div style="font-size: 11px; color: #666; margin-bottom: 8px; padding: 4px; background: #e3f2fd; border-radius: 4px;">
+ 可通过反馈改进 | 只读预览
+ </div>
+ <div class="file-item" data-file="readme">
+ README.md <span style="font-size: 10px; color: #999;">(只读)</span>
+ </div>
+ <div class="file-item" data-file="task_info">
+ task_info.json <span style="font-size: 10px; color: #4caf50;"> 可改进</span>
+ </div>
+ <div class="file-item" data-file="research">
+ RESEARCH_DETAILS.md <span style="font-size: 10px; color: #999;">(只读)</span>
+ </div>
+ <div style="margin-left: 20px; margin-top: 5px;"> data/</div>
+ <div style="margin-left: 40px;">${taskInfo.data?.map(d => ' ' + d.name).join('\n') || ' [数据集目录]'}</div>
+ <div style="margin-left: 20px; margin-top: 5px;"> target_study/</div>
+ <div style="margin-left: 40px; margin-top: 5px;" class="file-item" data-file="checklist">
+ checklist.json <span style="font-size: 10px; color: #4caf50;"> 可改进</span>
+ </div>
+ <div style="margin-left: 40px;"> paper/ <span style="font-size: 10px; color: #666;">(原始PDF)</span></div>
+ `;
+
+ fileTree.innerHTML = html;
+
+ // 添加文件点击事件
+ fileTree.querySelectorAll('.file-item').forEach(item => {
+ item.addEventListener('click', () => {
+ const fileType = item.dataset.file;
+ showFileContent(fileType, result);
+ });
+ });
+ }
+
+ // 显示文件内容
+ function showFileContent(fileType, result) {
+ const fileContent = document.getElementById('fileContent');
+ fileContent.classList.add('active');
+
+ let content = '';
+ let hint = '';
+
+ switch(fileType) {
+ case 'readme':
+ content = `# ${result.task_info.task || '项目说明'}
+
+## 概述
+本项目用于复现论文的核心发现。
+
+## 快速开始
+1. 准备数据集
+2. 运行实验
+3. 评估结果
+
+## 项目结构
+- data/: 数据文件目录
+- target_study/: 目标研究目录
+- README.md: 本文件`;
+ hint = ' 此文件由系统自动生成，内容基于模板';
+ break;
+
+ case 'task_info':
+ content = JSON.stringify(result.task_info, null, 2);
+ hint = ' 此文件可通过"提供反馈改进"功能优化';
+ break;
+
+ case 'research':
+ content = result.research_doc || '暂无研究详情';
+ hint = ' 此文件基于PDF自动提取，只读预览';
+ break;
+
+ case 'checklist':
+ content = JSON.stringify(result.checklist, null, 2);
+ hint = ' 此文件可通过"提供反馈改进"功能优化';
+ break;
+ }
+
+ fileContent.innerHTML = `
+ ${hint ? `<div style="padding: 8px; margin-bottom: 10px; background: #fff3e0; border-radius: 4px; font-size: 12px;">${hint}</div>` : ''}
+ <pre>${content}</pre>
+ `;
+ }
+
+ // 标签页切换
+ document.querySelectorAll('.tab-btn').forEach(btn => {
+ btn.addEventListener('click', () => {
+ // 移除所有active类
+ document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+ document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+ // 添加active类到当前元素
+ btn.classList.add('active');
+ const tabId = btn.dataset.tab;
+ document.getElementById(tabId).classList.add('active');
+ });
+ });
+
+ // 存储当前编辑的内容
+ let currentTaskInfo = null;
+ let currentChecklist = null;
+ let currentDatasets = [];
+ let currentPaperSources = {};
+ let currentResearchInfo = {};
+ let storedResult = null;  // stored result for source references
+
+ // 保存task_info修改
+ document.getElementById('saveTaskInfoBtn').addEventListener('click', async () => {
+ const editor = document.getElementById('taskInfoEditor');
+ const jsonContent = editor.value.trim();
+
+ if (!jsonContent) {
+ alert('请输入内容');
+ return;
+ }
+
+ try {
+ const parsed = JSON.parse(jsonContent);
+ currentTaskInfo = parsed;
+
+ // 更新显示
+ // 重新生成包含来源的显示
+ const newDataItems = (parsed.data || []).map((d, i) => {
+ const sectionLabel2 = d._source ? (d._source.match(/^【([^】]+)】/) ? d._source.match(/^【([^】]+)】/)[1] : '') : '';
+ const sourceQuote2 = d._source ? d._source.replace(/^【[^】]+】/, '').trim() : '';
+ const srcText = d._source ? `<div class="source-citation">` + (sectionLabel2 ? `<span class="source-section-label">${sectionLabel2}</span> ` : '') + sourceQuote2 + `</div>` : '';
+ return '<div style="margin-top: 5px; padding: 8px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-light);">' +
+ '<div style="font-size: 12px; color: var(--text-primary);">[' + (i + 1) + '] ' + d.name + '</div>' +
+ '<div style="font-size: 11px; color: var(--text-secondary);">路径: ' + (d.path || '') + '</div>' +
+ srcText + '</div>';
+ }).join('');
+ const taskSectionLabel = parsed.task_source ? (parsed.task_source.match(/^【([^】]+)】/) ? parsed.task_source.match(/^【([^】]+)】/)[1] : '') : '';
+ const taskQuote = parsed.task_source ? parsed.task_source.replace(/^【[^】]+】/, '').trim() : '';
+ const newTaskSrc = parsed.task_source ? `<div class="source-citation">` + (taskSectionLabel ? `<span class="source-section-label">${taskSectionLabel}</span> ` : '') + taskQuote + `</div>` : '';
+ document.getElementById('taskInfo').innerHTML = `
+ <div style="font-size: 14px; color: var(--text-primary);">
+ <strong>任务:</strong> ${parsed.task || '无'}
+ ${newTaskSrc}
+ </div>
+ <div style="margin-top: 10px;">
+ <strong style="font-size: 13px; color: var(--text-primary);">数据文件:</strong> ${parsed.data?.length || 0} 个
+ ${newDataItems}
+ </div>
+ `;
+
+ // 更新文件预览
+ displayFileStructure({task_info: parsed, checklist: currentChecklist || []});
+ displayPaperSources({task_info: parsed, checklist: currentChecklist || [], paper_sources: storedResult?.paper_sources || {}, research_info: currentResearchInfo || {}});
+ alert(' task_info.json 已更新！');
+
+ } catch (e) {
+ alert(' JSON格式错误：' + e.message);
+ }
+ });
+
+ // 保存checklist修改
+ document.getElementById('saveChecklistBtn').addEventListener('click', async () => {
+ const editor = document.getElementById('checklistEditor');
+ const jsonContent = editor.value.trim();
+
+ if (!jsonContent) {
+ alert('请输入内容');
+ return;
+ }
+
+ try {
+ const parsed = JSON.parse(jsonContent);
+ currentChecklist = parsed;
+
+ // 更新显示
+ const checklistItems = document.getElementById('checklistItems');
+ checklistItems.innerHTML = '';
+ if (parsed && parsed.length > 0) {
+ parsed.forEach((item, index) => {
+ const div = document.createElement('div');
+ div.className = 'checklist-item';
+ div.innerHTML = `
+ <div class="checklist-content">${index + 1}. ${item.content?.substring(0, 100) || ''}...</div>
+ <div class="checklist-meta">
+ <span>权重: ${(item.weight * 100).toFixed(0)}%</span>
+ 
+ </div>
+ `;
+ checklistItems.appendChild(div);
+ });
+ } else {
+ checklistItems.innerHTML = '<div style="text-align: center; color: #999;">暂无评分项</div>';
+ }
+
+ // 更新文件预览
+ displayFileStructure({task_info: currentTaskInfo || {}, checklist: parsed});
+ displayPaperSources({task_info: currentTaskInfo || {}, checklist: parsed, paper_sources: storedResult?.paper_sources || {}, research_info: currentResearchInfo || {}});
+ alert(' checklist.json 已更新！');
+
+ } catch (e) {
+ alert(' JSON格式错误：' + e.message);
+ }
+ });
+
+ // 添加自定义数据集
+ document.getElementById('addCustomDatasetBtn').addEventListener('click', () => {
+ const name = document.getElementById('customDatasetName').value.trim();
+ const description = document.getElementById('customDatasetDesc').value.trim();
+
+ if (!name) {
+ alert('请填写数据集名称');
+ return;
+ }
+
+ // 自动生成路径
+ const path = 'data/' + name;
+
+ const customDataset = {
+ name: name,
+ path: path,
+ description: description || '自定义数据集',
+ is_custom: true
+ };
+
+ // 更新数据集列表
+ currentDatasets.push(customDataset);
+
+ // 更新task_info
+ if (currentTaskInfo) {
+ currentTaskInfo.data = currentDatasets;
+
+ // 更新显示
+ const editor = document.getElementById('taskInfoEditor');
+ editor.value = JSON.stringify(currentTaskInfo, null, 2);
+ }
+
+ // 添加到上传列表
+ const dataUploadList = document.getElementById('dataUploadList');
+ const customDiv = document.createElement('div');
+ const customIndex = currentDatasets.length - 1;
+ customDiv.className = 'data-item';
+ customDiv.style.borderLeft = '4px solid #9c27b0';
+ customDiv.innerHTML = `
+ <div class="data-item-header">
+ <div class="data-item-name"> ${name} <span style="font-size: 10px; background: #f3e5f5; padding: 2px 6px; border-radius: 3px;">自定义</span></div>
+ <div class="dataset-controls">
+ <button class="upload-btn" onclick="uploadDataFile('${customIndex}')" id="uploadBtn_${customIndex}">
+ 上传文件
+ </button>
+ <button class="edit-btn" onclick="editDataset('${customIndex}')" id="editBtn_${customIndex}">
+ 编辑
+ </button>
+ <button class="delete-btn" onclick="deleteDataset('${customIndex}')" id="deleteBtn_${customIndex}">
+ 删除
+ </button>
+ <input type="file" class="file-input" id="fileInput_${customIndex}" onchange="handleDataFileUpload('${customIndex}', '${name}')">
+ </div>
+ </div>
+ <div class="data-item-description">
+ ${description}
+ </div>
+ <div class="data-item-requirements">
+ 路径: ${path}
+ </div>
+ <div class="upload-status" id="uploadStatus_${customIndex}"></div>
+ `;
+ dataUploadList.appendChild(customDiv);
+
+ // 清空输入
+ document.getElementById('customDatasetName').value = '';
+ document.getElementById('customDatasetDesc').value = '';
+
+ alert(` 自定义数据集 "${name}" 已添加！`);
+ });
+
+ // 编辑数据集
+ function editDataset(index) {
+ const dataset = currentDatasets[index];
+ if (!dataset) return;
+
+ const modal = document.getElementById('editModal');
+ const nameInput = document.getElementById('editDatasetName');
+ const pathInput = document.getElementById('editDatasetPath');
+ const descInput = document.getElementById('editDatasetDesc');
+
+ nameInput.value = dataset.name || '';
+ pathInput.value = dataset.path || '';
+ descInput.value = dataset.description || '';
+
+ // 存储当前编辑的数据集索引
+ modal.dataset.editingIndex = index;
+
+ modal.classList.add('active');
+ }
+
+ // 保存数据集编辑
+ function saveDatasetEdit() {
+ const modal = document.getElementById('editModal');
+ const index = modal.dataset.editingIndex;
+
+ const name = document.getElementById('editDatasetName').value.trim();
+ const path = document.getElementById('editDatasetPath').value.trim();
+ const description = document.getElementById('editDatasetDesc').value.trim();
+
+ if (!name || !path) {
+ alert('请填写数据集名称和路径');
+ return;
+ }
+
+ // 更新数据集
+ currentDatasets[index] = {
+ ...currentDatasets[index],
+ name: name,
+ path: path,
+ description: description
+ };
+
+ // 更新task_info
+ if (currentTaskInfo) {
+ currentTaskInfo.data = currentDatasets;
+ document.getElementById('taskInfoEditor').value = JSON.stringify(currentTaskInfo, null, 2);
+ }
+
+ // 刷新显示
+ displayDataUploadSection({task_info: currentTaskInfo || {}});
+
+ // 关闭模态框
+ modal.classList.remove('active');
+
+ alert(` 数据集 "${name}" 已更新！`);
+ }
+
+ // 删除数据集
+ function deleteDataset(index) {
+ const dataset = currentDatasets[index];
+ if (!dataset) return;
+
+ if (!confirm(`确定要删除数据集 "${dataset.name}" 吗？`)) {
+ return;
+ }
+
+ // 删除数据集
+ currentDatasets.splice(index, 1);
+
+ // 更新task_info
+ if (currentTaskInfo) {
+ currentTaskInfo.data = currentDatasets;
+ document.getElementById('taskInfoEditor').value = JSON.stringify(currentTaskInfo, null, 2);
+ }
+
+ // 刷新显示
+ displayDataUploadSection({task_info: currentTaskInfo || {}});
+
+ alert(` 数据集 "${dataset.name}" 已删除！`);
+ }
+
+ // 关闭编辑模态框
+ function closeEditModal() {
+ document.getElementById('editModal').classList.remove('active');
+ }
+
+ // ============================================================================
+ // 流水线启动与监视
+ // ============================================================================
+ let pipelineUUID = null;
+ let pipelinePollTimer = null;
+
+ // 加载任务列表
+ async function loadTaskList() {
+ const select = document.getElementById('pipelineTaskPath');
+ const currentVal = select.value;
+ select.innerHTML = '<option value="">-- 加载中... --</option>';
+ try {
+ const response = await fetch('/list_tasks');
+ const data = await response.json();
+ select.innerHTML = '<option value="">-- 请选择任务 --</option>';
+ if (data.success && data.tasks) {
+ data.tasks.forEach(task => {
+ const opt = document.createElement('option');
+ opt.value = task.relative_path;
+ opt.textContent = task.name + (task.has_task_info ? '' : ' 无task_info');
+ select.appendChild(opt);
+ });
+ }
+ // 恢复之前选中的值
+ if (currentVal) {
+ for (const opt of select.options) {
+ if (opt.value === currentVal) {
+ opt.selected = true;
+ break;
+ }
+ }
+ }
+ } catch (error) {
+ select.innerHTML = '<option value="">-- 加载失败，请刷新 --</option>';
+ }
+ }
+
+ // 页面加载时自动加载任务列表
+ loadTaskList();
+
+ // 刷新任务列表
+ document.getElementById('refreshTaskListBtn').addEventListener('click', loadTaskList);
+
+ // 切换高级参数显示
+ document.getElementById('toggleAdvancedBtn').addEventListener('click', () => {
+ const advanced = document.getElementById('pipelineAdvanced');
+ const btn = document.getElementById('toggleAdvancedBtn');
+ if (advanced.style.display === 'none') {
+ advanced.style.display = 'block';
+ btn.textContent = ' 隐藏高级参数';
+ } else {
+ advanced.style.display = 'none';
+ btn.textContent = ' 显示高级参数';
+ }
+ });
+
+ // 启动流水线
+ document.getElementById('startPipelineBtn').addEventListener('click', async () => {
+ const taskPath = document.getElementById('pipelineTaskPath').value.trim();
+ const mode = document.getElementById('pipelineMode').value;
+ const backend = document.getElementById('pipelineBackend').value;
+ const outputDir = document.getElementById('pipelineOutputDir').value.trim();
+  const skipIdea = document.getElementById('pipelineSkipIdea').checked;
+  const enableRefCode = document.getElementById('pipelineEnableRefCode').checked;
+  const refCodePath = document.getElementById('pipelineRefCodePath').value.trim();
+  const enableConfig = document.getElementById('pipelineEnableConfig').checked;
+  const configPath = document.getElementById('pipelineConfigPath').value.trim();
+  const enableIdeaPath = document.getElementById('pipelineEnableIdeaPath').checked;
+  const ideaPath = document.getElementById('pipelineIdeaPath').value.trim();
+  const enableOfflineFeedback = document.getElementById('pipelineEnableOfflineFeedback').checked;
+  const offlineFeedback = document.getElementById('pipelineOfflineFeedback').value.trim();
+  const enableResume = document.getElementById('pipelineEnableResume').checked;
+  const resumePath = document.getElementById('pipelineResumePath').value.trim();
+
+  if (!taskPath) {
+  alert('请选择任务');
+  return;
+  }
+
+  // 构建参数列表
+  const extraArgs = ['--mode', mode, '--exp_backend', backend];
+  if (outputDir) extraArgs.push('--output_dir', outputDir);
+  if (skipIdea) extraArgs.push('--skip_idea_generation');
+  if (enableRefCode && refCodePath) extraArgs.push('--ref_code_path', refCodePath);
+  if (enableConfig && configPath) extraArgs.push('--config', configPath);
+  if (enableIdeaPath && ideaPath) extraArgs.push('--idea_path', ideaPath);
+  if (enableOfflineFeedback && offlineFeedback) extraArgs.push('--offline_feedback', offlineFeedback);
+  if (enableResume && resumePath) extraArgs.push('--resume', resumePath);
+
+ const btn = document.getElementById('startPipelineBtn');
+ btn.disabled = true;
+ btn.textContent = '⏳ 正在启动...';
+
+ try {
+ const response = await fetch('/start_pipeline', {
+ method: 'POST',
+ headers: {'Content-Type': 'application/json'},
+ body: JSON.stringify({
+ task_path: taskPath,
+ task_id: `pipeline_${Date.now()}`,
+ extra_args: extraArgs
+ })
+ });
+
+ const data = await response.json();
+
+ if (data.success) {
+ pipelineUUID = data.pipeline_uuid;
+ document.getElementById('pipelineSetup').style.display = 'none';
+ document.getElementById('pipelineMonitor').style.display = 'block';
+ document.getElementById('stopPipelineBtn').style.display = 'inline-block';
+
+ const badge = document.getElementById('pipelineStatusBadge');
+ badge.textContent = '⏳ 运行中';
+ badge.style.background = '#fff3e0';
+
+ document.getElementById('pipelineStartTime').textContent = data.start_time || '--:--:--';
+
+ // 开始轮询
+ startPipelinePolling();
+ } else {
+ alert(' 启动失败: ' + data.error);
+ btn.disabled = false;
+ btn.textContent = ' 启动流水线';
+ }
+
+ } catch (error) {
+ alert(' 启动失败: ' + error);
+ btn.disabled = false;
+ btn.textContent = ' 启动流水线';
+ }
+ });
+
+ // 停止流水线
+ document.getElementById('stopPipelineBtn').addEventListener('click', async () => {
+ if (!confirm('确定要停止流水线吗？')) return;
+
+ try {
+ const response = await fetch('/stop_pipeline', {
+ method: 'POST',
+ headers: {'Content-Type': 'application/json'},
+ body: JSON.stringify({pipeline_uuid: pipelineUUID})
+ });
+
+ const data = await response.json();
+ if (data.success) {
+ appendPipelineLog(' 用户手动停止流水线');
+ stopPipelinePolling();
+ document.getElementById('stopPipelineBtn').style.display = 'none';
+ const badge = document.getElementById('pipelineStatusBadge');
+ badge.textContent = ' 已停止';
+ badge.style.background = '#ffebee';
+ }
+ } catch (error) {
+ alert('停止失败: ' + error);
+ }
+ });
+
+ // 轮询流水线状态
+ function startPipelinePolling() {
+ let lastLineCount = 0;
+
+ pipelinePollTimer = setInterval(async () => {
+ try {
+ const response = await fetch('/pipeline_status', {
+ method: 'POST',
+ headers: {'Content-Type': 'application/json'},
+ body: JSON.stringify({pipeline_uuid: pipelineUUID})
+ });
+
+ const data = await response.json();
+
+ if (data.success) {
+ // 更新运行时间
+ document.getElementById('pipelineElapsed').textContent = data.elapsed;
+
+ // 更新日志
+ if (data.output && data.output.length > lastLineCount) {
+ const newLines = data.output.slice(lastLineCount);
+ newLines.forEach(line => appendPipelineLog(line));
+ lastLineCount = data.output.length;
+ }
+
+ // 更新行数
+ document.getElementById('logLineCount').textContent = `${data.output.length} 行`;
+
+ // 检查状态变化
+ if (data.status === 'completed') {
+ stopPipelinePolling();
+ document.getElementById('stopPipelineBtn').style.display = 'none';
+ const badge = document.getElementById('pipelineStatusBadge');
+ badge.textContent = ' 已完成';
+ badge.style.background = '#e8f5e9';
+ appendPipelineLog(' 流水线执行完成！');
+
+ // 显示重新启动按钮
+ showRestartPipeline();
+ } else if (data.status === 'error') {
+ stopPipelinePolling();
+ document.getElementById('stopPipelineBtn').style.display = 'none';
+ const badge = document.getElementById('pipelineStatusBadge');
+ badge.textContent = ' 执行失败';
+ badge.style.background = '#ffebee';
+ appendPipelineLog(' 流水线执行出错，请检查日志');
+
+ // 显示重新启动按钮
+ showRestartPipeline();
+ }
+ }
+
+ } catch (error) {
+ appendPipelineLog(` 轮询状态失败: ${error}`);
+ }
+ }, 1000);
+ }
+
+ // 停止轮询
+ function stopPipelinePolling() {
+ if (pipelinePollTimer) {
+ clearInterval(pipelinePollTimer);
+ pipelinePollTimer = null;
+ }
+ }
+
+ // 追加日志
+ function appendPipelineLog(line) {
+ const log = document.getElementById('pipelineLog');
+ const div = document.createElement('div');
+ div.textContent = line;
+ log.appendChild(div);
+ log.scrollTop = log.scrollHeight;
+ }
+
+ // 清空日志
+ document.getElementById('clearLogBtn').addEventListener('click', () => {
+ document.getElementById('pipelineLog').innerHTML = '';
+ document.getElementById('logLineCount').textContent = '0 行';
+ });
+
+ // 显示重新启动按钮
+ function showRestartPipeline() {
+ const restartBtn = document.createElement('button');
+ restartBtn.className = 'btn';
+ restartBtn.style.cssText = 'width: auto; padding: 8px 16px; margin-top: 10px;';
+ restartBtn.textContent = ' 重新启动';
+ restartBtn.onclick = () => {
+ document.getElementById('pipelineMonitor').style.display = 'none';
+ document.getElementById('pipelineSetup').style.display = 'block';
+ document.getElementById('startPipelineBtn').disabled = false;
+ document.getElementById('startPipelineBtn').textContent = ' 启动流水线';
+ };
+ document.getElementById('pipelineLog').appendChild(restartBtn);
+ }
+
+ // 跳转到流水线
+ function goToPipeline(taskPath) {
+ // 选中对应任务
+ const select = document.getElementById('pipelineTaskPath');
+ for (const opt of select.options) {
+ if (opt.value === taskPath) {
+ opt.selected = true;
+ break;
+ }
+ }
+ // 切换到流水线标签
+ document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+ document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+ document.querySelector('[data-tab="pipeline"]').classList.add('active');
+ document.getElementById('pipeline').classList.add('active');
+ }
+ </script>
+
+ <!-- 编辑数据集模态框 -->
+ <div class="edit-modal" id="editModal">
+ <div class="edit-modal-content">
+ <div class="edit-modal-title"> 编辑数据集信息</div>
+ <div style="margin-bottom: 15px;">
+ <label style="display: block; margin-bottom: 5px; font-weight: bold;">数据集名称:</label>
+ <input type="text" class="feedback-input" id="editDatasetName" placeholder="例如: UniRef50">
+ </div>
+ <div style="margin-bottom: 15px;">
+ <label style="display: block; margin-bottom: 5px; font-weight: bold;">存储路径:</label>
+ <input type="text" class="feedback-input" id="editDatasetPath" placeholder="例如: data/UniRef50">
+ </div>
+ <div style="margin-bottom: 15px;">
+ <label style="display: block; margin-bottom: 5px; font-weight: bold;">数据集描述:</label>
+ <textarea class="feedback-input" id="editDatasetDesc" placeholder="例如: UniProt数据库在50%序列同一性下聚类的数据集"></textarea>
+ </div>
+ <div class="edit-modal-buttons">
+ <button class="btn" onclick="saveDatasetEdit()" style="flex: 1;"> 保存修改</button>
+ <button class="btn" onclick="closeEditModal()" style="flex: 1; background: #f44336;">取消</button>
+ </div>
+ </div>
+ </div>
+
+ <script>
+ // 反馈改进
+ document.getElementById('refineBtn').addEventListener('click', async () => {
+ const feedback = document.getElementById('feedbackInput').value.trim();
+ if (!feedback) {
+ alert('请提供反馈建议');
+ return;
+ }
+ const btn = document.getElementById('refineBtn');
+ btn.disabled = true;
+ btn.textContent = '正在改进...';
+ try {
+ const response = await fetch('/refine', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({
+ task_id: currentTaskId,
+ feedback: feedback
+ })
+ });
+ const data = await response.json();
+ if (data.success) {
+ displayResult(data.result);
+ document.getElementById('feedbackInput').value = '';
+ const improvementBox = document.getElementById('improvementBox');
+ improvementBox.style.display = 'block';
+ improvementBox.innerHTML = '<strong> 改进完成！</strong><br>质量评分已提升，请查看上方结果。';
+ } else {
+ alert('改进失败: ' + data.error);
+ }
+ } catch (error) {
+ alert('改进失败: ' + error);
+ } finally {
+ btn.disabled = false;
+ btn.textContent = '提交反馈并改进';
+ }
+ });
+
+
+ // 配置管理
+ let configSchema = null;
+ let configValues = {};
+
+ async function loadConfig() {
+   const container = document.getElementById('configContainer');
+   try {
+     const response = await fetch('/get_config');
+     const data = await response.json();
+     if (data.success) {
+       configSchema = data.schema;
+       configValues = data.config;
+       renderConfigForm();
+     } else {
+       container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 30px;">加载配置失败: ' + data.error + '</div>';
+     }
+   } catch (error) {
+     container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 30px;">加载配置失败: ' + error + '</div>';
+   }
+ }
+
+ function renderConfigForm() {
+   const container = document.getElementById('configContainer');
+   let html = '<div style="display: flex; flex-direction: column; gap: 20px;">';
+   for (const [groupKey, group] of Object.entries(configSchema)) {
+     html += '<div style="background: var(--bg-canvas); border-radius: var(--radius-md); padding: 20px 24px; border: 1px solid var(--border-light);">';
+     html += '<div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light);">' + group.label + '</div>';
+     html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px;">';
+     for (const [fieldKey, meta] of Object.entries(group.fields)) {
+       const fullKey = groupKey + '.' + fieldKey;
+       const val = configValues[fullKey] !== undefined ? configValues[fullKey] : '';
+       const inputId = 'cfg_' + fullKey.replace(/\./g, '_');
+       html += '<div style="display: flex; flex-direction: column; gap: 4px;">';
+       html += '<label for="' + inputId + '" style="font-size: 12px; font-weight: 500; color: var(--text-primary);">' + meta.label + '</label>';
+       html += '<span style="font-size: 10px; color: var(--text-tertiary); line-height: 1.4;">' + (meta.desc || '') + '</span>';
+       if (meta.type === 'bool') {
+         html += '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 0;">';
+         html += '<input type="checkbox" id="' + inputId + '" data-fullkey="' + fullKey + '" ' + (val ? 'checked' : '') + ' style="width: 16px; height: 16px;">';
+         html += '<span style="font-size: 13px; color: var(--text-secondary);">' + (val ? '已启用' : '已禁用') + '</span>';
+         html += '</label>';
+       } else if (meta.type === 'select') {
+         html += '<select id="' + inputId + '" data-fullkey="' + fullKey + '" class="feedback-input" style="min-height: auto; font-size: 13px; margin-bottom: 0;">';
+         for (const opt of (meta.options || [])) {
+           html += '<option value="' + opt + '" ' + (String(val) === String(opt) ? 'selected' : '') + '>' + opt + '</option>';
+         }
+         html += '</select>';
+       } else if (meta.type === 'int') {
+         html += '<input type="number" id="' + inputId + '" data-fullkey="' + fullKey + '" value="' + val + '" min="' + (meta.min || 0) + '" max="' + (meta.max || 100) + '" class="feedback-input" style="min-height: auto; font-size: 13px; margin-bottom: 0;">';
+       } else if (meta.type === 'float') {
+         html += '<input type="number" id="' + inputId + '" data-fullkey="' + fullKey + '" value="' + val + '" min="' + (meta.min || 0) + '" max="' + (meta.max || 1) + '" step="' + (meta.step || 0.05) + '" class="feedback-input" style="min-height: auto; font-size: 13px; margin-bottom: 0;">';
+       }
+       html += '</div>';
+     }
+     html += '</div></div>';
+   }
+   html += '</div>';
+   container.innerHTML = html;
+ }
+
+ function collectConfigUpdates() {
+   const updates = {};
+   document.querySelectorAll('[data-fullkey]').forEach(el => {
+     const key = el.dataset.fullkey;
+     if (el.type === 'checkbox') {
+       updates[key] = el.checked;
+     } else if (el.type === 'number') {
+       const raw = el.value;
+       const original = configValues[key];
+       if (Number.isInteger(original)) {
+         updates[key] = parseInt(raw, 10);
+       } else {
+         updates[key] = parseFloat(raw);
+       }
+     } else {
+       updates[key] = el.value;
+     }
+   });
+   return updates;
+ }
+
+ // 保存配置
+ document.getElementById('saveConfigBtn').addEventListener('click', async () => {
+   const btn = document.getElementById('saveConfigBtn');
+   const status = document.getElementById('configSaveStatus');
+   const updates = collectConfigUpdates();
+   btn.disabled = true;
+   btn.textContent = '⏳ 保存中...';
+   status.textContent = '';
+   try {
+     const response = await fetch('/save_config', {
+       method: 'POST',
+       headers: {'Content-Type': 'application/json'},
+       body: JSON.stringify({updates: updates})
+     });
+     const data = await response.json();
+     if (data.success) {
+       status.textContent = ' 配置保存成功！重启流水线后生效';
+       status.style.color = 'var(--success)';
+     } else {
+       status.textContent = ' 保存失败: ' + data.error;
+       status.style.color = 'var(--danger)';
+     }
+   } catch (error) {
+     status.textContent = ' 保存失败: ' + error;
+     status.style.color = 'var(--danger)';
+   } finally {
+     btn.disabled = false;
+     btn.textContent = ' 保存配置';
+   }
+ });
+
+ // 重新加载配置
+ document.getElementById('reloadConfigBtn').addEventListener('click', () => {
+   document.getElementById('configSaveStatus').textContent = '';
+   loadConfig();
+ });
+
+ // 页面加载时读取配置
+ loadConfig();
+
+ // 创建项目
+ document.getElementById('createProjectBtn').addEventListener('click', async () => {
+ const taskName = document.getElementById('taskNameInput').value.trim();
+ const btn = document.getElementById('createProjectBtn');
+ btn.disabled = true;
+ btn.textContent = '正在创建项目...';
+ try {
+ const response = await fetch('/create_project', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({
+ task_id: currentTaskId,
+ task_name: taskName
+ })
+ });
+ const data = await response.json();
+ if (data.success) {
+ // 刷新任务列表
+ loadTaskList();
+ const successMessage = document.getElementById('successMessage');
+ successMessage.style.display = 'block';
+ successMessage.innerHTML = `
+ <strong> 项目创建成功！</strong><br>
+ 项目路径: ${data.creation_result.task_path}<br>
+ 任务ID: ${data.creation_result.task_id}<br><br>
+ 您现在可以在sci_tasks目录中看到生成的任务文件。
+ <br><br>
+ <button class="btn" onclick="goToPipeline('sci_tasks/tasks/${data.creation_result.task_id}')" style="width: auto; padding: 8px 16px; margin-top: 5px;">
+ 跳转到流水线
+ </button>
+ `;
+ } else {
+ alert('创建失败: ' + data.error);
+ }
+ } catch (error) {
+ alert('创建失败: ' + error);
+ } finally {
+ btn.disabled = false;
+ btn.textContent = '创建sci_tasks项目';
+ }
+ });
+ </script>
+
+</body>
+</html>

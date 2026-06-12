@@ -138,13 +138,8 @@ def validate_checklist(checklist: List[Dict[str, Any]]) -> Dict[str, Any]:
             warnings.append(f"item[{i}]缺少推荐字段: 'weight'")
 
         # 可选字段检查
-        optional_fields = ['id', 'keywords', 'evaluation_criteria']
-        for field in optional_fields:
-            if field in item:
-                if field == 'keywords' and not isinstance(item[field], list):
-                    errors.append(f"item[{i}]的'keywords'必须是列表")
-                if field == 'id' and not isinstance(item[field], str):
-                    errors.append(f"item[{i}]的'id'必须是字符串")
+        if 'id' in item and not isinstance(item['id'], str):
+            errors.append(f"item[{i}]的'id'必须是字符串")
 
     # 权重和建议检查
     if total_weight > 0 and abs(total_weight - 1.0) > 0.1:

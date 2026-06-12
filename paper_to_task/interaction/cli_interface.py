@@ -320,6 +320,7 @@ class CLIInterface:
             task_info=result['task_info'],
             checklist=result['checklist'],
             pdf_path=pdf_path,
+            research_doc=result.get('research_doc', ''),
             domain=domain
         )
 

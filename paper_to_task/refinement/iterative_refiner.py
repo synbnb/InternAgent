@@ -99,61 +99,67 @@ class IterativeRefiner:
         }
 
     def _add_missing_info(self, content: Dict, analysis: Dict) -> Dict:
-        """添加缺失信息"""
-        task_info = content['task_info'].copy()
-        checklist = content['checklist'].copy()
-
+        """使用LLM添加缺失信息"""
         target = analysis.get('target', 'both')
+        missing_fields = analysis.get('specific_issues', [])
 
-        if target in ['task_info', 'both']:
-            # 补充task_info
-            if not task_info.get('background'):
-                task_info['background'] = "请提供研究背景信息"
+        prompt = f"""以下研究任务内容缺少关键信息，需要补充。
 
-            if not task_info.get('data'):
-                task_info['data'] = [{
-                    "name": "data_file",
-                    "path": "data/data_file",
-                    "description": "请描述数据文件内容"
-                }]
+当前内容：
+{json.dumps(content, ensure_ascii=False, indent=2)}
 
-        if target in ['checklist', 'both']:
-            # 补充checklist
-            if len(checklist) < 3:
-                additional_items = [
-                    {
-                        "id": f"item_{len(checklist)}",
-                        "type": "text",
-                        "weight": 0.1,
-                        "content": "补充评分项：详细说明实验方法",
-                        "keywords": ["方法", "实现"],
-                        "evaluation_criteria": "是否详细描述了实验方法"
-                    }
-                ]
-                checklist.extend(additional_items)
+缺失信息：
+{json.dumps(missing_fields, ensure_ascii=False, indent=2)}
 
-        return {'task_info': task_info, 'checklist': checklist}
+需要补充的部分：{target}
+
+请补充这些缺失信息，要求：
+1. 对于task_info：添加合理的研究背景、数据集描述等
+2. 对于checklist：确保至少有5个评分项，权重分配合理
+3. 补充的信息要符合研究主题，不要使用通用模板
+4. 保持JSON结构完整
+
+返回补充后的完整内容，包含 task_info 和 checklist。"""
+
+        try:
+            response = self.llm_client.call_with_json(prompt, system_prompt=self.system_prompt)
+            if response and 'task_info' in response and 'checklist' in response:
+                return response
+        except Exception as e:
+            print(f"LLM补充信息失败: {e}")
+
+        return content
 
     def _correct_inaccuracy(self, content: Dict, analysis: Dict) -> Dict:
-        """修正不准确描述"""
-        task_info = content['task_info'].copy()
-        checklist = content['checklist'].copy()
-
-        # 根据具体问题进行修正
+        """使用LLM修正不准确描述"""
         specific_issues = analysis.get('specific_issues', [])
+        improvements = analysis.get('improvements', [])
 
-        for issue in specific_issues:
-            if '任务' in issue or 'task' in issue.lower():
-                # 改进任务描述
-                task_info['task'] = self._improve_task_description(task_info['task'], issue)
-            elif '数据' in issue or 'data' in issue.lower():
-                # 改进数据描述
-                task_info['data'] = self._improve_data_description(task_info.get('data', []), issue)
-            elif '评分' in issue or 'checklist' in issue.lower():
-                # 改进checklist
-                checklist = self._improve_checklist(checklist, issue)
+        if not specific_issues and not improvements:
+            return content
 
-        return {'task_info': task_info, 'checklist': checklist}
+        # 使用LLM根据具体问题进行修正
+        prompt = f"""以下研究任务内容存在描述不准确的问题，需要修正。
+
+当前内容：
+{json.dumps(content, ensure_ascii=False, indent=2)}
+
+发现的问题：
+{json.dumps(specific_issues, ensure_ascii=False, indent=2)}
+
+改进建议：
+{json.dumps(improvements, ensure_ascii=False, indent=2)}
+
+请修正这些问题，返回改进后的完整内容，包含 task_info 和 checklist。"""
+
+        try:
+            response = self.llm_client.call_with_json(prompt, system_prompt=self.system_prompt)
+            if response and 'task_info' in response and 'checklist' in response:
+                return response
+        except Exception as e:
+            print(f"LLM修正失败: {e}")
+
+        return content
 
     def _improve_structure(self, content: Dict, analysis: Dict) -> Dict:
         """改进结构"""
@@ -172,37 +178,66 @@ class IterativeRefiner:
         return {'task_info': task_info, 'checklist': checklist}
 
     def _enhance_content(self, content: Dict, analysis: Dict) -> Dict:
-        """增强内容"""
-        task_info = content['task_info'].copy()
-        checklist = content['checklist'].copy()
-
-        # 增强task_info描述
-        if 'task_info' in analysis.get('target', ''):
-            task_info = self._enhance_task_info_details(task_info)
-
-        # 增强checklist
-        if 'checklist' in analysis.get('target', ''):
-            checklist = self._enhance_checklist_details(checklist)
-
-        return {'task_info': task_info, 'checklist': checklist}
-
-    def _general_improvement(self, content: Dict, analysis: Dict) -> Dict:
-        """通用改进"""
-        task_info = content['task_info'].copy()
-        checklist = content['checklist'].copy()
-
-        # 根据反馈建议进行改进
+        """使用LLM增强内容"""
         improvements = analysis.get('improvements', [])
 
-        for improvement in improvements:
-            if '详细' in improvement or 'detail' in improvement.lower():
-                task_info = self._add_more_details(task_info)
-            elif '具体' in improvement or 'specific' in improvement.lower():
-                checklist = self._make_checklist_more_specific(checklist)
-            elif '权重' in improvement or 'weight' in improvement.lower():
-                checklist = self._adjust_checklist_weights(checklist)
+        # 使用LLM增强内容
+        prompt = f"""以下研究任务内容需要增强，使其更详细、更专业。
 
-        return {'task_info': task_info, 'checklist': checklist}
+当前内容：
+{json.dumps(content, ensure_ascii=False, indent=2)}
+
+增强需求：
+{json.dumps(improvements, ensure_ascii=False, indent=2)}
+
+请增强这些内容，要求：
+1. 任务描述要包含具体的研究目标和预期结果
+2. 数据描述要说明每个数据集的用途和特点
+3. Checklist评分项要针对具体研究，包含可量化的评估标准
+4. 保持JSON结构完整
+
+返回改进后的完整内容，包含 task_info 和 checklist。"""
+
+        try:
+            response = self.llm_client.call_with_json(prompt, system_prompt=self.system_prompt)
+            if response and 'task_info' in response and 'checklist' in response:
+                return response
+        except Exception as e:
+            print(f"LLM增强失败: {e}")
+
+        return content
+
+    def _general_improvement(self, content: Dict, analysis: Dict) -> Dict:
+        """使用LLM进行通用改进"""
+        improvements = analysis.get('improvements', [])
+        feedback_type = analysis.get('type', 'general')
+
+        # 使用LLM根据反馈进行通用改进
+        prompt = f"""以下研究任务内容需要根据用户反馈进行改进。
+
+当前内容：
+{json.dumps(content, ensure_ascii=False, indent=2)}
+
+用户反馈类型：{feedback_type}
+改进建议：
+{json.dumps(improvements, ensure_ascii=False, indent=2)}
+
+请根据这些反馈改进内容，要求：
+1. 如果反馈要求更详细，扩展描述并添加具体细节
+2. 如果反馈要求更具体，添加具体的研究细节（模型名称、数据集、指标等）
+3. 如果反馈要求调整权重，确保权重分配合理且总和为1.0
+4. 保持JSON结构完整
+
+返回改进后的完整内容，包含 task_info 和 checklist。"""
+
+        try:
+            response = self.llm_client.call_with_json(prompt, system_prompt=self.system_prompt)
+            if response and 'task_info' in response and 'checklist' in response:
+                return response
+        except Exception as e:
+            print(f"LLM通用改进失败: {e}")
+
+        return content
 
     def _improve_task_description(self, current_task: str, issue: str) -> str:
         """改进任务描述"""
@@ -258,9 +293,6 @@ class IterativeRefiner:
             if len(item.get('content', '')) < 30:
                 item['content'] += "。需要提供更详细的描述和具体的评估标准。"
 
-            # 添加keywords
-            if not item.get('keywords'):
-                item['keywords'] = ["质量", "完整性", "准确性"]
 
         return checklist
 
@@ -278,11 +310,31 @@ class IterativeRefiner:
         return task_info
 
     def _make_checklist_more_specific(self, checklist: List) -> List:
-        """使checklist更具体"""
-        for item in checklist:
-            content = item.get('content', '')
-            if '应该' in content and '具体' not in content:
-                item['content'] = content.replace('应该', '应该具体详细地')
+        """使用LLM使checklist更具体"""
+        # 使用LLM重新生成针对性的checklist
+        prompt = f"""以下checklist太通用，需要针对具体研究进行改进。
+
+当前checklist：
+{json.dumps(checklist, ensure_ascii=False, indent=2)}
+
+请将这些评分项改得更加具体和针对性，要求：
+1. 每个评分项都要包含具体的研究细节（模型名称、数据集、指标等）
+2. 评估标准要明确可检查
+3. 关键词要与研究内容直接相关
+4. 保持权重分配合理
+
+请返回改进后的checklist JSON格式。"""
+
+        try:
+            response = self.llm_client.call_with_json(prompt, system_prompt=self.system_prompt)
+            if response and isinstance(response, list):
+                # 确保ID连续
+                for i, item in enumerate(response):
+                    item['id'] = f"item_{i}"
+                return response
+        except Exception as e:
+            print(f"LLM改进失败，使用原样: {e}")
+
         return checklist
 
     def _adjust_checklist_weights(self, checklist: List) -> List:

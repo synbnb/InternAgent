@@ -1,312 +1,267 @@
 """
-内容生成模块 - 生成task_info.json和checklist.json
+内容生成模块 - 使用LLM生成所有内容
 """
 
-import json
 from typing import Dict, List, Any
-from datetime import datetime
 
 
 class SciTaskGenerator:
-    """sci任务生成器"""
+    """sci任务生成器 - 完全基于LLM"""
 
     def __init__(self):
-        # task_info模板
-        self.task_info_template = {
-            "task": "",
-            "background": "",
-            "research_goal": "",
-            "hypothesis": "",
-            "data": [],
-            "experimental_design": {},
-            "expected_outcomes": [],
-            "constraints": [],
-            "success_criteria": []
-        }
-
-        # checklist模板
-        self.checklist_template = {
-            "items": []
-        }
+        pass
 
     def generate_task_info(self, research_info: Dict[str, Any],
                           paper_metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
-        生成task_info.json
+        生成task_info.json（包含论文来源引用）
+
+        Args:
+            research_info: 提取的研究信息（含 _paper_sources）
+            paper_metadata: 论文元数据
+
+        Returns:
+            task_info字典（每个数据项含 _source 字段）
+        """
+        # 直接从research_info中获取信息
+        title = research_info.get('title', '相关论文')
+        datasets = research_info.get('datasets', [])
+        sources = research_info.get('_paper_sources', {})
+
+        # 从 sources 中构建数据集引用
+        dataset_sources_map = {}
+        if 'datasets' in sources and isinstance(sources['datasets'], list):
+            for ds_src in sources['datasets']:
+                dataset_sources_map[ds_src['name']] = ds_src['source']
+
+        # 构建任务描述及其来源
+        task_desc = f"复现论文《{title}》的核心发现"
+        task_source = sources.get('title', '')
+
+        return {
+            "task": task_desc,
+            "task_source": task_source,
+            "data": [
+                {
+                    "name": dataset.get('name', f"dataset_{i+1}"),
+                    "path": f"data/{dataset.get('name', f'dataset_{i+1}')}",
+                    "description": dataset.get('description', ''),
+                    "_source": dataset_sources_map.get(dataset.get('name', ''), dataset.get('source', '该数据集由系统从论文中识别'))
+                }
+                for i, dataset in enumerate(datasets)
+            ]
+        }
+
+    def generate_checklist(self, research_info: Dict[str, Any],
+                           llm_client=None) -> List[Dict]:
+        """
+        使用LLM生成针对性的checklist.json，包含论文原文依据
+
+        Args:
+            research_info: 研究信息
+            llm_client: LLM客户端（需要传入）
+
+        Returns:
+            checklist列表，每项含 _source 引用原文
+        """
+        if not llm_client:
+            # 如果没有LLM客户端，使用基础模板
+            return self._generate_basic_checklist(research_info)
+
+        # 使用LLM生成针对性checklist
+        prompt = f"""基于以下研究信息，生成具体的评分checklist。**每项必须提供 `_source` 字段**，从下面的研究信息中摘录支持该评分项的原始依据。
+
+!!! 重要规则 !!!
+1. 原文摘录必须**保留原文语言**（英文论文→英文摘录，中文论文→中文摘录）。**禁止翻译！**
+2. 每个摘录必须是**完整段落或至少3-5句连贯内容**，不能只截取一句话。
+3. 每个摘录前面必须标注**出自论文的哪个部分/章节**，格式为 `【章节名】`。
+
+研究信息：
+标题：{research_info.get('title', '')}
+研究目标：{research_info.get('research_goal', '')}
+方法：{research_info.get('methods', {}).get('main_methods', '')}
+数据集：{', '.join([ds.get('name', '') for ds in research_info.get('datasets', [])])}
+预期结果：{'; '.join(research_info.get('key_findings', [])[:3])}
+
+请生成5个具体的评分项，要求：
+1. 每个评分项都要针对这个具体研究
+2. 权重要合理分配（总和为1.0）
+3. 内容要具体，不要用通用套话
+4. **每项必须提供 `_source` 字段**，格式为 `【章节名】原文完整段落（保留原文语言，至少3-5句话）`
+
+返回JSON格式：
+{{
+  "items": [
+    {{
+      "type": "text",
+      "weight": 0.25,
+      "content": "针对具体研究的评分内容（中文）",
+      "_source": "【Section X】原文完整段落（保留原始语言，至少3-5句话）"
+    }}
+  ]
+}}"""
+
+        response = llm_client.call_with_json(prompt)
+
+        if response and 'items' in response:
+            checklist_items = response['items']
+            # 确保ID连续，确保每个item有_source
+            for i, item in enumerate(checklist_items):
+                item['id'] = f"item_{i}"
+                if '_source' not in item:
+                    item['_source'] = '系统基于论文研究信息生成'
+            return checklist_items
+        else:
+            # LLM失败时使用基础模板
+            return self._generate_basic_checklist(research_info)
+
+    def _generate_basic_checklist(self, research_info: Dict[str, Any]) -> List[Dict]:
+        """生成基础checklist（后备方案），含来源引用"""
+        # 根据研究信息生成稍微具体的checklist
+        methods = research_info.get('methods', {})
+        main_methods = methods.get('main_methods', '')
+        datasets = [ds.get('name', '') for ds in research_info.get('datasets', [])]
+        sources = research_info.get('_paper_sources', {})
+
+        checklist_items = [
+            {
+                "type": "text",
+                "weight": 0.25,
+                "content": f"报告应详细描述{main_methods[:50] if main_methods else '实验方法'}的具体实现过程",
+                "_source": sources.get('methods', '基于论文方法部分概述')
+            },
+            {
+                "type": "text",
+                "weight": 0.15,
+                "content": f"报告应包含数据处理步骤，涉及{', '.join(datasets[:3]) if datasets else '相关'}数据集的使用说明",
+                "_source": f"基于论文使用数据集: {', '.join(datasets[:3]) if datasets else '未明确列出'}"
+            },
+            {
+                "type": "text",
+                "weight": 0.20,
+                "content": "报告应展示量化的性能结果，包括性能指标、准确率、效率等指标",
+                "_source": sources.get('key_findings', '基于论文预期结果部分') if isinstance(sources.get('key_findings'), str) else (sources.get('key_findings', ['基于论文预期结果部分'])[0] if isinstance(sources.get('key_findings'), list) and sources.get('key_findings') else '基于论文预期结果部分')
+            },
+            {
+                "type": "text",
+                "weight": 0.15,
+                "content": "报告应讨论实验结果与论文关键发现的一致性",
+                "_source": "基于论文的研究目标和假说"
+            },
+            {
+                "type": "text",
+                "weight": 0.10,
+                "content": "代码应具有良好的可读性和可重复性",
+                "_source": "基于通用科研实践标准"
+            }
+        ]
+
+        # 确保ID连续
+        for i, item in enumerate(checklist_items):
+            item['id'] = f"item_{i}"
+        return checklist_items
+
+    def generate_research_doc(self, research_info: Dict[str, Any],
+                             paper_metadata: Dict[str, Any]) -> str:
+        """
+        生成研究详情文档（Markdown格式）
 
         Args:
             research_info: 提取的研究信息
             paper_metadata: 论文元数据
 
         Returns:
-            task_info字典
+            Markdown格式的文档内容
         """
-        task_info = self.task_info_template.copy()
+        title = research_info.get('title', '相关论文')
+        authors = research_info.get('authors', [])
+        year = research_info.get('year', '')
+        doi = research_info.get('doi', '')
 
-        # 基础信息
-        title = paper_metadata.get('title', '相关论文')
-        task_info["task"] = f"复现论文《{title[:50]}...》的核心发现"
-        task_info["background"] = research_info.get("background", "")
-        task_info["research_goal"] = research_info.get("research_goal", "")
-        task_info["hypothesis"] = research_info.get("hypothesis", "")
+        doc_lines = []
+        doc_lines.append(f"# {title}\n")
 
-        # 数据信息
-        datasets = research_info.get("datasets", [])
-        task_info["data"] = self._generate_data_section(datasets)
+        # 论文信息
+        if authors or year or doi:
+            doc_lines.append("## 论文信息\n")
+            if authors:
+                doc_lines.append(f"**作者**: {', '.join(authors[:5])}")
+                if len(authors) > 5:
+                    doc_lines.append(f" 等 ({len(authors)}位作者)")
+            if year:
+                doc_lines.append(f"\n**年份**: {year}")
+            if doi:
+                doc_lines.append(f"\n**DOI**: {doi}")
+            doc_lines.append("\n")
+
+        # 研究背景
+        background = research_info.get("background", "")
+        if background:
+            doc_lines.append("## 研究背景\n")
+            doc_lines.append(f"{background}\n")
+
+        # 研究目标
+        research_goal = research_info.get("research_goal", "")
+        if research_goal:
+            doc_lines.append("## 研究目标\n")
+            doc_lines.append(f"{research_goal}\n")
+
+        # 研究假设
+        hypothesis = research_info.get("hypothesis", "")
+        if hypothesis:
+            doc_lines.append("## 研究假设\n")
+            doc_lines.append(f"{hypothesis}\n")
+
+        # 方法概述
+        methods = research_info.get("methods", {})
+        main_methods = methods.get("main_methods", "")
+        if main_methods:
+            doc_lines.append("## 方法概述\n")
+            doc_lines.append(f"{main_methods}\n")
 
         # 实验设计
         experimental_design = research_info.get("experimental_design", {})
-        task_info["experimental_design"] = self._format_experimental_design(experimental_design)
+        if experimental_design:
+            doc_lines.append("## 实验设计\n")
+            phases = experimental_design.get('phases', {})
+            if phases:
+                for phase_name, phase_info in phases.items():
+                    if isinstance(phase_info, dict) and phase_info.get('name'):
+                        doc_lines.append(f"### {phase_info['name']}\n")
+                        doc_lines.append(f"{phase_info.get('description', '')}\n")
+
+            comparison = experimental_design.get('comparison_groups', '')
+            if comparison:
+                doc_lines.append(f"**对比组**: {comparison}\n")
+
+            variables = experimental_design.get('variables', [])
+            if variables:
+                doc_lines.append("\n**变量**:\n")
+                for var in variables:
+                    doc_lines.append(f"- {var}\n")
 
         # 预期结果
         key_findings = research_info.get("key_findings", [])
-        task_info["expected_outcomes"] = [
-            f"成功验证：{finding}" for finding in key_findings
-        ]
+        if key_findings:
+            doc_lines.append("## 预期结果\n")
+            for finding in key_findings:
+                doc_lines.append(f"- {finding}\n")
 
         # 约束条件
         constraints = research_info.get("constraints", [])
-        task_info["constraints"] = constraints
+        if constraints:
+            doc_lines.append("## 约束条件\n")
+            for constraint in constraints:
+                doc_lines.append(f"- {constraint}\n")
 
         # 成功标准
         success_criteria = research_info.get("success_criteria", [])
-        task_info["success_criteria"] = success_criteria
+        if success_criteria:
+            doc_lines.append("## 成功标准\n")
+            for criterion in success_criteria:
+                doc_lines.append(f"- {criterion}\n")
 
-        return task_info
-
-    def _generate_data_section(self, datasets: List[Dict]) -> List[Dict]:
-        """生成数据部分"""
-        data_section = []
-
-        for i, dataset in enumerate(datasets):
-            data_item = {
-                "name": dataset.get("name", f"dataset_{i+1}"),
-                "path": f"data/{dataset.get('name', f'dataset_{i+1}')}",
-                "description": dataset.get("description", "")
-            }
-            data_section.append(data_item)
-
-        # 如果没有数据集，添加默认数据项
-        if not data_section:
-            data_section.append({
-                "name": "research_data",
-                "path": "data/research_data",
-                "description": "根据论文描述准备的实验数据"
-            })
-
-        return data_section
-
-    def _format_experimental_design(self, experimental_design: Dict) -> Dict:
-        """格式化实验设计"""
-        formatted = {}
-
-        phases = experimental_design.get('phases', {})
-        if phases:
-            formatted['phases'] = phases
-
-        comparison = experimental_design.get('comparison_groups', '')
-        if comparison:
-            formatted['comparison_groups'] = comparison
-
-        variables = experimental_design.get('variables', [])
-        if variables:
-            formatted['variables'] = variables
-
-        return formatted
-
-    def generate_checklist(self, research_info: Dict[str, Any],
-                           paper_content: Dict[str, Any]) -> List[Dict]:
-        """
-        生成checklist.json
-
-        Args:
-            research_info: 研究信息
-            paper_content: 论文内容
-
-        Returns:
-            checklist列表
-        """
-        checklist_items = []
-
-        # 1. 方法实现评分项
-        methods = research_info.get("methods", {})
-        if methods.get("main_methods"):
-            checklist_items.append({
-                "id": f"item_{len(checklist_items)}",
-                "type": "text",
-                "weight": 0.25,
-                "content": f"报告应详细描述{methods['main_methods']}的具体实现过程",
-                "keywords": ["方法实现", "实验设计", "具体步骤"],
-                "evaluation_criteria": "是否清楚说明了实验方法的具体实现过程和参数设置"
-            })
-
-        # 2. 数据处理评分项
-        datasets = research_info.get("datasets", [])
-        if datasets:
-            checklist_items.append({
-                "id": f"item_{len(checklist_items)}",
-                "type": "text",
-                "weight": 0.15,
-                "content": f"报告应包含数据处理步骤，涉及{len(datasets)}个数据集的使用说明",
-                "keywords": ["数据处理", "数据集使用", "预处理"],
-                "evaluation_criteria": "是否描述了如何处理和使用实验数据"
-            })
-
-        # 3. 结果展示评分项
-        metrics = research_info.get("metrics", [])
-        if metrics:
-            checklist_items.append({
-                "id": f"item_{len(checklist_items)}",
-                "type": "text",
-                "weight": 0.20,
-                "content": f"报告应展示量化的性能结果，包括{', '.join(metrics[:3])}等指标",
-                "keywords": ["性能指标", "量化结果", "统计分析"] + metrics,
-                "evaluation_criteria": "是否提供具体的数值结果和统计分析"
-            })
-
-        # 4. 图表生成评分项
-        figures = paper_content.get("figures", [])
-        if len(figures) >= 2:
-            checklist_items.append({
-                "id": f"item_{len(checklist_items)}",
-                "type": "image",
-                "weight": 0.15,
-                "content": "生成类似论文中的可视化结果图表",
-                "path": "images/result_visualization.png",
-                "keywords": ["可视化", "结果图表", "性能对比"],
-                "evaluation_criteria": "图表是否清晰展示了实验结果"
-            })
-
-        # 5. 讨论分析评分项
-        key_findings = research_info.get("key_findings", [])
-        if key_findings:
-            checklist_items.append({
-                "id": f"item_{len(checklist_items)}",
-                "type": "text",
-                "weight": 0.15,
-                "content": "报告应讨论实验结果与论文关键发现的一致性",
-                "keywords": ["结果分析", "发现验证", "一致性讨论"],
-                "evaluation_criteria": "是否分析了实验结果与预期发现的符合程度"
-            })
-
-        # 6. 代码质量评分项
-        checklist_items.append({
-            "id": f"item_{len(checklist_items)}",
-            "type": "text",
-            "weight": 0.10,
-            "content": "代码应具有良好的可读性和可重复性",
-            "keywords": ["代码质量", "可重复性", "文档"],
-            "evaluation_criteria": "代码结构是否清晰，能否重复运行"
-        })
-
-        return checklist_items
-
-    def generate_project_structure(self, task_name: str,
-                                   task_info: Dict,
-                                   checklist: List[Dict],
-                                   domain: str = "Science") -> Dict[str, str]:
-        """
-        生成项目结构
-
-        Args:
-            task_name: 任务名称
-            task_info: 任务信息
-            checklist: 检查清单
-            domain: 领域名称
-
-        Returns:
-            项目结构字典
-        """
-        # 生成任务ID
-        task_id = self._generate_task_id(domain, task_name)
-
-        # 创建目录结构
-        directory_structure = {
-            "root": f"sci_tasks/tasks/{task_id}",
-            "files": {},
-            "directories": {}
-        }
-
-        # 添加文件
-        directory_structure["files"] = {
-            "task_info.json": json.dumps(task_info, indent=2, ensure_ascii=False),
-            "target_study/checklist.json": json.dumps(checklist, indent=2, ensure_ascii=False),
-            "DATA_README.md": self._generate_data_readme(task_info),
-            "TASK_STATUS.md": "# Task Status\n\n初始化完成，等待执行。"
-        }
-
-        # 添加目录
-        directory_structure["directories"] = {
-            "data/": "数据文件目录",
-            "target_study/images/": "参考图表目录",
-            "target_study/paper/": "参考论文目录"
-        }
-
-        return directory_structure
-
-    def _generate_task_id(self, domain: str, task_name: str) -> str:
-        """生成任务ID"""
-        timestamp = datetime.now().strftime("%Y%m%d")
-        # 简化版任务ID生成
-        return f"{domain}_{timestamp}_001"
-
-    def _generate_data_readme(self, task_info: Dict) -> str:
-        """生成数据说明文件"""
-        readme = "# 数据文件说明\n\n"
-
-        data_items = task_info.get("data", [])
-        if data_items:
-            readme += "## 可用数据文件\n\n"
-            for item in data_items:
-                readme += f"### {item['name']}\n"
-                readme += f"- **路径**: `{item['path']}`\n"
-                readme += f"- **描述**: {item['description']}\n\n"
-        else:
-            readme += "## 数据文件\n\n"
-            readme += "请根据论文描述准备相应的数据文件。\n\n"
-
-        readme += "## 数据准备指南\n\n"
-        readme += "1. 从论文补充材料或相关网站下载数据\n"
-        readme += "2. 将数据文件放置在 `data/` 目录下\n"
-        readme += "3. 更新 `task_info.json` 中的文件路径\n\n"
-
-        readme += "## 数据格式要求\n\n"
-        readme += "- 确保数据格式与论文描述一致\n"
-        readme += "- 包含必要的元数据和标签\n"
-        readme += "- 检查数据完整性和质量\n\n"
-
-        return readme
-
-    def optimize_task_description(self, task_info: Dict,
-                                  research_info: Dict) -> Dict:
-        """
-        优化任务描述
-
-        Args:
-            task_info: 原始任务信息
-            research_info: 研究信息
-
-        Returns:
-            优化后的任务信息
-        """
-        optimized = task_info.copy()
-
-        # 优化任务描述
-        task_desc = optimized.get("task", "")
-        if len(task_desc) < 50:
-            # 扩展简短的任务描述
-            research_goal = research_info.get("research_goal", "")
-            if research_goal:
-                optimized["task"] = f"{task_desc}：{research_goal}"
-
-        # 确保必需字段存在
-        if not optimized.get("background"):
-            optimized["background"] = research_info.get("background", "研究背景待补充")
-
-        if not optimized.get("research_goal"):
-            optimized["research_goal"] = research_info.get("research_goal", "验证论文核心发现")
-
-        return optimized
+        return '\n'.join(doc_lines)
 
     def balance_checklist_weights(self, checklist: List[Dict]) -> List[Dict]:
         """
@@ -340,25 +295,3 @@ class SciTaskGenerator:
                 item['weight'] = round(weight, 2)
 
         return checklist
-
-    def generate_metadata(self, research_info: Dict,
-                          paper_metadata: Dict) -> Dict[str, Any]:
-        """
-        生成元数据
-
-        Args:
-            research_info: 研究信息
-            paper_metadata: 论文元数据
-
-        Returns:
-            元数据字典
-        """
-        return {
-            "generated_at": datetime.now().isoformat(),
-            "paper_title": paper_metadata.get("title", ""),
-            "paper_authors": paper_metadata.get("authors", []),
-            "paper_year": paper_metadata.get("year"),
-            "paper_doi": paper_metadata.get("doi", ""),
-            "research_field": research_info.get("research_field", ""),
-            "generator_version": "1.0.0"
-        }
