@@ -4804,69 +4804,19 @@ function renderSimpleMarkdown(md) {
 
  </div>
 
- <div style="margin-bottom: 15px;">
+	 <div style="margin-bottom: 15px;">
+		 <label style="display: block; margin-bottom: 5px; font-weight: bold;">数据集描述:</label>
+		 <textarea class="feedback-input" id="editDatasetDesc" placeholder="例如: UniProt数据库在50%序列同一性下聚类的数据集"></textarea>
+	 </div>
 
- <label style="display: block; margin-bottom: 5px; font-weight: bold;">数据集描述:</label>
+	 <div class="edit-modal-buttons">
+		 <button class="btn" onclick="saveDatasetEdit()" style="flex: 1;"> 保存修改</button>
+		 <button class="btn" onclick="closeEditModal()" style="flex: 1; background: #f44336;">取消</button>
+	 </div>
 
+	 </div>
 
-	// 保存数据集编辑
-	function saveDatasetEdit() {
-		const modal = document.getElementById('editModal');
-		const index = modal.dataset.editingIndex;
-
-		const name = document.getElementById('editDatasetName').value.trim();
-		const path = document.getElementById('editDatasetPath').value.trim();
-		const description = document.getElementById('editDatasetDesc').value.trim();
-
-		if (!name || !path) {
-			alert('请填写数据集名称和路径');
-			return;
-		}
-
-		// 更新数据集
-		currentDatasets[index] = {
-			...currentDatasets[index],
-			name: name,
-			path: path,
-			description: description
-		};
-
-		// 更新task_info
-		if (currentTaskInfo) {
-			currentTaskInfo.data = currentDatasets;
-			document.getElementById('taskInfoEditor').value = JSON.stringify(currentTaskInfo, null, 2);
-		}
-
-		// 刷新显示
-		renderDatasetList(currentDatasets);
-		syncTaskInfoToEditor();
-
-		// 更新文件预览
-		if (storedResult && storedResult.task_info) {
-			storedResult.task_info.data = currentDatasets;
-			displayFileStructure(storedResult);
-		}
-
-		// 关闭模态框
-		modal.classList.remove('active');
-
-		alert(`数据集 "${name}" 已更新！`);
-	}
- <textarea class="feedback-input" id="editDatasetDesc" placeholder="例如: UniProt数据库在50%序列同一性下聚类的数据集"></textarea>
-
- </div>
-
- <div class="edit-modal-buttons">
-
- <button class="btn" onclick="saveDatasetEdit()" style="flex: 1;"> 保存修改</button>
-
- <button class="btn" onclick="closeEditModal()" style="flex: 1; background: #f44336;">取消</button>
-
- </div>
-
- </div>
-
- </div>
+	 </div>
 
 	 <!-- 添加数据集模态框 -->
 	 <div class="edit-modal" id="addDatasetModal">
