@@ -877,7 +877,7 @@ let currentPolishedMarkdown = null;
  // 显示进度
  function showProgress(show) {
  document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
- document.getElementById('resultContainer').style.display = show ? 'none' : 'none';
+ document.getElementById('resultContainer').style.display = show ? 'none' : 'block';
  if (show) document.getElementById('uploadQualityCard').style.display = 'none';
  }
 
@@ -965,34 +965,11 @@ let currentPolishedMarkdown = null;
  `;
  }
 
- // 评分项
- const checklistItems = document.getElementById('checklistItems');
- checklistItems.innerHTML = '';
- if (result.checklist && result.checklist.length > 0) {
- result.checklist.forEach((item, index) => {
- const div = document.createElement('div');
- div.className = 'checklist-item';
- const itemSectionLabel = item._source ? (item._source.match(/^【([^】]+)】/) ? item._source.match(/^【([^】]+)】/)[1] : '') : '';
- const itemSourceQuote = item._source ? item._source.replace(/^【[^】]+】/, '').trim() : '';
- const srcHtml = item._source ? `<div class="source-citation">` + (itemSectionLabel ? `<span class="source-section-label">${itemSectionLabel}</span> ` : '') + itemSourceQuote + `</div>` : '';
- div.innerHTML = `
- <div class="checklist-content">${index + 1}. ${item.content.substring(0, 100)}...</div>
- ${srcHtml}
- <div class="checklist-meta">
- <span>权重: ${(item.weight * 100).toFixed(0)}%</span>
- </div>
- `;
- checklistItems.appendChild(div);
- });
- } else {
- checklistItems.innerHTML = '<div style="text-align: center; color: #999;">暂无评分项</div>';
- }
+// 显示文件结构预览（异常保护）
+ try { displayFileStructure(result); } catch (e) { console.error('displayFileStructure error:', e); }
 
- // 显示文件结构预览
- displayFileStructure(result);
-
- // 显示数据上传区域
- displayDataUploadSection(result);
+ // 显示数据上传区域（异常保护）
+ try { displayDataUploadSection(result); } catch (e) { console.error('displayDataUploadSection error:', e); }
 
  // 初始化编辑器内容
  currentTaskInfo = result.task_info || {};
@@ -1008,8 +985,13 @@ storedResult = result;  // store for access from save handlers
  document.getElementById('taskInfoEditor').value = JSON.stringify(currentTaskInfo, null, 2);
  document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
 
- // 显示论文来源引用
- displayPaperSources(result);
+ // 显示论文来源引用（异常保护）
+ try { displayPaperSources(result); } catch (e) { console.error('displayPaperSources error:', e); }
+
+ // 自动填充论文原文标签页内容
+ if (currentRawMarkdown) {
+     document.getElementById('paperRawInner').textContent = currentRawMarkdown;
+ }
  }
 
  // 显示数据上传区域
