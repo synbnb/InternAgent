@@ -1618,18 +1618,16 @@ let currentPolishedMarkdown = null;
 	// 等待DOM加载完成
 	document.addEventListener('DOMContentLoaded', function() {
 
-			console.log('DOM loaded, initializing...');
  // 文件上传处理
+	 const uploadArea = document.getElementById('uploadArea');
+	 const fileInput = document.getElementById('fileInput');
+	 const processBtn = document.getElementById('processBtn');
 
- const uploadArea = document.getElementById('uploadArea');
-
- const fileInput = document.getElementById('fileInput');
-
-		console.log('uploadArea:', uploadArea);
-		console.log('fileInput:', fileInput);
-		console.log('processBtn:', processBtn);
- const processBtn = document.getElementById('processBtn');
-			console.log('Click event added to uploadArea');
+	 console.log('DOM loaded, initializing...');
+	 console.log('uploadArea:', uploadArea);
+	 console.log('fileInput:', fileInput);
+	 console.log('processBtn:', processBtn);
+	 console.log('Click event added to uploadArea');
 
 
 
