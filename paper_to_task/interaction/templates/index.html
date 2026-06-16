@@ -955,8 +955,23 @@ let currentPolishedMarkdown = null;
  </div>
  `;
 
- // 使用结构化任务审查
- renderTaskReview(result);
+ // 使用结构化任务审查（异常保护）
+ try { 
+   renderTaskReview(result); 
+ } catch (e) {
+   console.error("renderTaskReview error:", e);
+   console.error("Stack:", e.stack);
+   // 后备机制：确保即使renderTaskReview失败，内容也能显示
+   const taskInfo = result.task_info || {};
+   const checklist = result.checklist || [];
+   currentTaskInfo = taskInfo;
+   currentChecklist = checklist;
+   currentDatasets = taskInfo.data || [];
+   // 显示数据集和添加按钮
+   renderDatasetList(currentDatasets);
+   // 显示评分项和添加按钮
+   renderChecklistWeights(checklist);
+ }
 
  // 显示研究详情
  if (result.research_doc) {
