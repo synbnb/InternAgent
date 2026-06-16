@@ -3326,6 +3326,12 @@ function renderSimpleMarkdown(md) {
 
          document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
 
+         // 更新文件预览
+         if (storedResult) {
+           storedResult.checklist = currentChecklist;
+           displayFileStructure(storedResult);
+         }
+
        }
 
      });
@@ -3347,6 +3353,12 @@ function renderSimpleMarkdown(md) {
          renderChecklistWeights(currentChecklist);
 
          document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
+
+         // 更新文件预览
+         if (storedResult) {
+           storedResult.checklist = currentChecklist;
+           displayFileStructure(storedResult);
+         }
 
        }
 
@@ -3370,7 +3382,21 @@ function renderSimpleMarkdown(md) {
 
    var total = 0;
 
-   inputs.forEach(function(inp) { total += parseFloat(inp.value) || 0; });
+   inputs.forEach(function(inp) {
+     var idx = parseInt(inp.dataset.index);
+     var weightValue = parseFloat(inp.value) || 0;
+     total += weightValue;
+
+     // 同步更新 currentChecklist 中的权重值
+     if (currentChecklist && currentChecklist[idx]) {
+       currentChecklist[idx].weight = weightValue / 100; // 转换为小数形式
+     }
+   });
+
+   // 更新 checklist 编辑器
+   if (currentChecklist && currentChecklist.length > 0) {
+     document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
+   }
 
    var display = document.getElementById('weightTotalDisplay');
 
@@ -3518,6 +3544,12 @@ function renderSimpleMarkdown(md) {
 
    syncTaskInfoToEditor();
 
+   // 更新文件预览
+   if (storedResult && storedResult.task_info) {
+     storedResult.task_info.data = currentDatasets;
+     displayFileStructure(storedResult);
+   }
+
  });
 
 
@@ -3537,6 +3569,12 @@ function renderSimpleMarkdown(md) {
    renderChecklistWeights(currentChecklist);
 
    document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
+
+   // 更新文件预览
+   if (storedResult) {
+     storedResult.checklist = currentChecklist;
+     displayFileStructure(storedResult);
+   }
 
  });
 
@@ -3837,6 +3875,12 @@ function renderSimpleMarkdown(md) {
  // 刷新显示
 
  displayDataUploadSection({task_info: currentTaskInfo || {}});
+
+ // 更新文件预览
+ if (storedResult && storedResult.task_info) {
+   storedResult.task_info.data = currentDatasets;
+   displayFileStructure(storedResult);
+ }
 
 
 
