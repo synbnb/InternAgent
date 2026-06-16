@@ -4517,6 +4517,404 @@ function renderSimpleMarkdown(md) {
 
  }
 
+
+
+	 // 反馈改进
+
+	 document.getElementById('refineBtn').addEventListener('click', async () => {
+
+	 const feedback = document.getElementById('feedbackInput').value.trim();
+
+	 if (!feedback) {
+
+	 alert('请提供反馈建议');
+
+	 return;
+
+	 }
+
+	 const btn = document.getElementById('refineBtn');
+
+	 btn.disabled = true;
+
+	 btn.textContent = '正在改进...';
+
+	 try {
+
+	 const response = await fetch('/refine', {
+
+	 method: 'POST',
+
+	 headers: { 'Content-Type': 'application/json' },
+
+	 body: JSON.stringify({
+
+	 task_id: currentTaskId,
+
+	 feedback: feedback
+
+	 })
+
+	 });
+
+	 const data = await response.json();
+
+	 if (data.success) {
+
+	 displayResult(data.result);
+
+	 document.getElementById('feedbackInput').value = '';
+
+	 const improvementBox = document.getElementById('improvementBox');
+
+	 improvementBox.style.display = 'block';
+
+	 improvementBox.innerHTML = '<strong> 改进完成！</strong><br>质量评分已提升，请查看上方结果。';
+
+	 } else {
+
+	 alert('改进失败: ' + data.error);
+
+	 }
+
+	 } catch (error) {
+
+	 alert('改进失败: ' + error);
+
+	 } finally {
+
+	 btn.disabled = false;
+
+	 btn.textContent = '提交反馈并改进';
+
+	 }
+
+	 });
+
+
+
+	 // 配置管理
+
+	 let configSchema = null;
+
+	 let configValues = {};
+
+
+
+	 async function loadConfig() {
+
+	 const container = document.getElementById('configContainer');
+
+	 try {
+
+	 const response = await fetch('/get_config');
+
+	 const data = await response.json();
+
+	 if (data.success) {
+
+	 configSchema = data.schema;
+
+	 configValues = data.config;
+
+	 renderConfigForm();
+
+	 } else {
+
+	 container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 30px;">加载配置失败: ' + data.error + '</div>';
+
+	 }
+
+	 } catch (error) {
+
+	 container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 30px;">加载配置失败: ' + error + '</div>';
+
+	 }
+
+	 }
+
+
+
+	 function renderConfigForm() {
+
+	 const container = document.getElementById('configContainer');
+
+	 let html = '<div style="display: flex; flex-direction: column; gap: 20px;">';
+
+	 for (const [groupKey, group] of Object.entries(configSchema)) {
+
+	 html += '<div style="background: var(--bg-canvas); border-radius: var(--radius-md); padding: 20px 24px; border: 1px solid var(--border-light);">';
+
+	 html += '<div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light);">' + group.label + '</div>';
+
+	 html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px;">';
+
+	 for (const [fieldKey, meta] of Object.entries(group.fields)) {
+
+	 const fullKey = groupKey + '.' + fieldKey;
+
+	 const val = configValues[fullKey] !== undefined ? configValues[fullKey] : '';
+
+	 const inputId = 'cfg_' + fullKey.replace(/\./g, '_');
+
+	 html += '<div style="display: flex; flex-direction: column; gap: 4px;">';
+
+	 html += '<label for="' + inputId + '" style="font-size: 12px; font-weight: 500; color: var(--text-primary);">' + meta.label + '</label>';
+
+	 html += '<span style="font-size: 10px; color: var(--text-tertiary); line-height: 1.4;">' + (meta.desc || '') + '</span>';
+
+	 if (meta.type === 'bool') {
+
+	 html += '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 0;">';
+
+	 html += '<input type="checkbox" id="' + inputId + '" data-fullkey="' + fullKey + '" ' + (val ? 'checked' : '') + ' style="width: 16px; height: 16px;">';
+
+	 html += '<span style="font-size: 13px; color: var(--text-secondary);">' + (val ? '已启用' : '已禁用') + '</span>';
+
+	 html += '</label>';
+
+	 } else if (meta.type === 'select') {
+
+	 html += '<select id="' + inputId + '" data-fullkey="' + fullKey + '" class="feedback-input" style="min-height: auto; font-size: 13px; margin-bottom: 0;">';
+
+	 for (const opt of (meta.options || [])) {
+
+	 html += '<option value="' + opt + '" ' + (String(val) === String(opt) ? 'selected' : '') + '>' + opt + '</option>';
+
+	 }
+
+	 html += '</select>';
+
+	 } else if (meta.type === 'int') {
+
+	 html += '<input type="number" id="' + inputId + '" data-fullkey="' + fullKey + '" value="' + val + '" min="' + (meta.min || 0) + '" max="' + (meta.max || 100) + '" class="feedback-input" style="min-height: auto; font-size: 13px; margin-bottom: 0;">';
+
+	 } else if (meta.type === 'float') {
+
+	 html += '<input type="number" id="' + inputId + '" data-fullkey="' + fullKey + '" value="' + val + '" min="' + (meta.min || 0) + '" max="' + (meta.max || 1) + '" step="' + (meta.step || 0.05) + '" class="feedback-input" style="min-height: auto; font-size: 13px; margin-bottom: 0;">';
+
+	 }
+
+	 html += '</div>';
+
+	 }
+
+	 html += '</div></div>';
+
+	 }
+
+	 html += '</div>';
+
+	 container.innerHTML = html;
+
+	 }
+
+
+
+	 function collectConfigUpdates() {
+
+	 const updates = {};
+
+	 document.querySelectorAll('[data-fullkey]').forEach(el => {
+
+	 const key = el.dataset.fullkey;
+
+	 if (el.type === 'checkbox') {
+
+	 updates[key] = el.checked;
+
+	 } else if (el.type === 'number') {
+
+	 const raw = el.value;
+
+	 const original = configValues[key];
+
+	 if (Number.isInteger(original)) {
+
+	 updates[key] = parseInt(raw, 10);
+
+	 } else {
+
+	 updates[key] = parseFloat(raw);
+
+	 }
+
+	 } else {
+
+	 updates[key] = el.value;
+
+	 }
+
+	 });
+
+	 return updates;
+
+	 }
+
+
+
+	 // 保存配置
+
+	 document.getElementById('saveConfigBtn').addEventListener('click', async () => {
+
+	 const btn = document.getElementById('saveConfigBtn');
+
+	 const status = document.getElementById('configSaveStatus');
+
+	 const updates = collectConfigUpdates();
+
+	 btn.disabled = true;
+
+	 btn.textContent = '⏳ 保存中...';
+
+	 status.textContent = '';
+
+	 try {
+
+	 const response = await fetch('/save_config', {
+
+	 method: 'POST',
+
+	 headers: {'Content-Type': 'application/json'},
+
+	 body: JSON.stringify({updates: updates})
+
+	 });
+
+	 const data = await response.json();
+
+	 if (data.success) {
+
+	 status.textContent = ' 配置保存成功！重启流水线后生效';
+
+	 status.style.color = 'var(--success)';
+
+	 } else {
+
+	 status.textContent = ' 保存失败: ' + data.error;
+
+	 status.style.color = 'var(--danger)';
+
+	 }
+
+	 } catch (error) {
+
+	 status.textContent = ' 保存失败: ' + error;
+
+	 status.style.color = 'var(--danger)';
+
+	 } finally {
+
+	 btn.disabled = false;
+
+	 btn.textContent = ' 保存配置';
+
+	 }
+
+	 });
+
+
+
+	 // 重新加载配置
+
+	 document.getElementById('reloadConfigBtn').addEventListener('click', () => {
+
+	 document.getElementById('configSaveStatus').textContent = '';
+
+	 loadConfig();
+
+	 });
+
+
+
+	 // 页面加载时读取配置
+
+	 loadConfig();
+
+
+
+	 // 创建项目
+
+	 document.getElementById('createProjectBtn').addEventListener('click', async () => {
+
+	 const taskName = document.getElementById('taskNameInput').value.trim();
+
+	 const btn = document.getElementById('createProjectBtn');
+
+	 btn.disabled = true;
+
+	 btn.textContent = '正在创建项目...';
+
+	 try {
+
+	 const response = await fetch('/create_project', {
+
+	 method: 'POST',
+
+	 headers: { 'Content-Type': 'application/json' },
+
+	 body: JSON.stringify({
+
+	 task_id: currentTaskId,
+
+	 task_name: taskName
+
+	 })
+
+	 });
+
+	 const data = await response.json();
+
+	 if (data.success) {
+
+	 // 刷新任务列表
+
+	 loadTaskList();
+
+	 const successMessage = document.getElementById('successMessage');
+
+	 successMessage.style.display = 'block';
+
+	 successMessage.innerHTML = `
+
+	 <strong> 项目创建成功！</strong><br>
+
+	 项目路径: ${data.creation_result.task_path}<br>
+
+	 任务ID: ${data.creation_result.task_id}<br><br>
+
+	 您现在可以在sci_tasks目录中看到生成的任务文件。
+
+	 <br><br>
+
+	 <button class="btn" onclick="goToPipeline('sci_tasks/tasks/${data.creation_result.task_id}')" style="width: auto; padding: 8px 16px; margin-top: 5px;">
+
+	 跳转到流水线
+
+	 </button>
+
+	 `;
+
+	 } else {
+
+	 alert('创建失败: ' + data.error);
+
+	 }
+
+	 } catch (error) {
+
+	 alert('创建失败: ' + error);
+
+	 } finally {
+
+	 btn.disabled = false;
+
+	 btn.textContent = '创建sci_tasks项目';
+
+	 }
+
+	 });
+
  </script>
 
 
@@ -4610,407 +5008,6 @@ function renderSimpleMarkdown(md) {
 
 
 
- <script>
-
- // 反馈改进
-
- document.getElementById('refineBtn').addEventListener('click', async () => {
-
- const feedback = document.getElementById('feedbackInput').value.trim();
-
- if (!feedback) {
-
- alert('请提供反馈建议');
-
- return;
-
- }
-
- const btn = document.getElementById('refineBtn');
-
- btn.disabled = true;
-
- btn.textContent = '正在改进...';
-
- try {
-
- const response = await fetch('/refine', {
-
- method: 'POST',
-
- headers: { 'Content-Type': 'application/json' },
-
- body: JSON.stringify({
-
- task_id: currentTaskId,
-
- feedback: feedback
-
- })
-
- });
-
- const data = await response.json();
-
- if (data.success) {
-
- displayResult(data.result);
-
- document.getElementById('feedbackInput').value = '';
-
- const improvementBox = document.getElementById('improvementBox');
-
- improvementBox.style.display = 'block';
-
- improvementBox.innerHTML = '<strong> 改进完成！</strong><br>质量评分已提升，请查看上方结果。';
-
- } else {
-
- alert('改进失败: ' + data.error);
-
- }
-
- } catch (error) {
-
- alert('改进失败: ' + error);
-
- } finally {
-
- btn.disabled = false;
-
- btn.textContent = '提交反馈并改进';
-
- }
-
- });
-
-
-
-
-
- // 配置管理
-
- let configSchema = null;
-
- let configValues = {};
-
-
-
- async function loadConfig() {
-
-   const container = document.getElementById('configContainer');
-
-   try {
-
-     const response = await fetch('/get_config');
-
-     const data = await response.json();
-
-     if (data.success) {
-
-       configSchema = data.schema;
-
-       configValues = data.config;
-
-       renderConfigForm();
-
-     } else {
-
-       container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 30px;">加载配置失败: ' + data.error + '</div>';
-
-     }
-
-   } catch (error) {
-
-     container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 30px;">加载配置失败: ' + error + '</div>';
-
-   }
-
- }
-
-
-
- function renderConfigForm() {
-
-   const container = document.getElementById('configContainer');
-
-   let html = '<div style="display: flex; flex-direction: column; gap: 20px;">';
-
-   for (const [groupKey, group] of Object.entries(configSchema)) {
-
-     html += '<div style="background: var(--bg-canvas); border-radius: var(--radius-md); padding: 20px 24px; border: 1px solid var(--border-light);">';
-
-     html += '<div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light);">' + group.label + '</div>';
-
-     html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px;">';
-
-     for (const [fieldKey, meta] of Object.entries(group.fields)) {
-
-       const fullKey = groupKey + '.' + fieldKey;
-
-       const val = configValues[fullKey] !== undefined ? configValues[fullKey] : '';
-
-       const inputId = 'cfg_' + fullKey.replace(/\./g, '_');
-
-       html += '<div style="display: flex; flex-direction: column; gap: 4px;">';
-
-       html += '<label for="' + inputId + '" style="font-size: 12px; font-weight: 500; color: var(--text-primary);">' + meta.label + '</label>';
-
-       html += '<span style="font-size: 10px; color: var(--text-tertiary); line-height: 1.4;">' + (meta.desc || '') + '</span>';
-
-       if (meta.type === 'bool') {
-
-         html += '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 0;">';
-
-         html += '<input type="checkbox" id="' + inputId + '" data-fullkey="' + fullKey + '" ' + (val ? 'checked' : '') + ' style="width: 16px; height: 16px;">';
-
-         html += '<span style="font-size: 13px; color: var(--text-secondary);">' + (val ? '已启用' : '已禁用') + '</span>';
-
-         html += '</label>';
-
-       } else if (meta.type === 'select') {
-
-         html += '<select id="' + inputId + '" data-fullkey="' + fullKey + '" class="feedback-input" style="min-height: auto; font-size: 13px; margin-bottom: 0;">';
-
-         for (const opt of (meta.options || [])) {
-
-           html += '<option value="' + opt + '" ' + (String(val) === String(opt) ? 'selected' : '') + '>' + opt + '</option>';
-
-         }
-
-         html += '</select>';
-
-       } else if (meta.type === 'int') {
-
-         html += '<input type="number" id="' + inputId + '" data-fullkey="' + fullKey + '" value="' + val + '" min="' + (meta.min || 0) + '" max="' + (meta.max || 100) + '" class="feedback-input" style="min-height: auto; font-size: 13px; margin-bottom: 0;">';
-
-       } else if (meta.type === 'float') {
-
-         html += '<input type="number" id="' + inputId + '" data-fullkey="' + fullKey + '" value="' + val + '" min="' + (meta.min || 0) + '" max="' + (meta.max || 1) + '" step="' + (meta.step || 0.05) + '" class="feedback-input" style="min-height: auto; font-size: 13px; margin-bottom: 0;">';
-
-       }
-
-       html += '</div>';
-
-     }
-
-     html += '</div></div>';
-
-   }
-
-   html += '</div>';
-
-   container.innerHTML = html;
-
- }
-
-
-
- function collectConfigUpdates() {
-
-   const updates = {};
-
-   document.querySelectorAll('[data-fullkey]').forEach(el => {
-
-     const key = el.dataset.fullkey;
-
-     if (el.type === 'checkbox') {
-
-       updates[key] = el.checked;
-
-     } else if (el.type === 'number') {
-
-       const raw = el.value;
-
-       const original = configValues[key];
-
-       if (Number.isInteger(original)) {
-
-         updates[key] = parseInt(raw, 10);
-
-       } else {
-
-         updates[key] = parseFloat(raw);
-
-       }
-
-     } else {
-
-       updates[key] = el.value;
-
-     }
-
-   });
-
-   return updates;
-
- }
-
-
-
- // 保存配置
-
- document.getElementById('saveConfigBtn').addEventListener('click', async () => {
-
-   const btn = document.getElementById('saveConfigBtn');
-
-   const status = document.getElementById('configSaveStatus');
-
-   const updates = collectConfigUpdates();
-
-   btn.disabled = true;
-
-   btn.textContent = '⏳ 保存中...';
-
-   status.textContent = '';
-
-   try {
-
-     const response = await fetch('/save_config', {
-
-       method: 'POST',
-
-       headers: {'Content-Type': 'application/json'},
-
-       body: JSON.stringify({updates: updates})
-
-     });
-
-     const data = await response.json();
-
-     if (data.success) {
-
-       status.textContent = ' 配置保存成功！重启流水线后生效';
-
-       status.style.color = 'var(--success)';
-
-     } else {
-
-       status.textContent = ' 保存失败: ' + data.error;
-
-       status.style.color = 'var(--danger)';
-
-     }
-
-   } catch (error) {
-
-     status.textContent = ' 保存失败: ' + error;
-
-     status.style.color = 'var(--danger)';
-
-   } finally {
-
-     btn.disabled = false;
-
-     btn.textContent = ' 保存配置';
-
-   }
-
- });
-
-
-
- // 重新加载配置
-
- document.getElementById('reloadConfigBtn').addEventListener('click', () => {
-
-   document.getElementById('configSaveStatus').textContent = '';
-
-   loadConfig();
-
- });
-
-
-
- // 页面加载时读取配置
-
- loadConfig();
-
-
-
- // 创建项目
-
- document.getElementById('createProjectBtn').addEventListener('click', async () => {
-
- const taskName = document.getElementById('taskNameInput').value.trim();
-
- const btn = document.getElementById('createProjectBtn');
-
- btn.disabled = true;
-
- btn.textContent = '正在创建项目...';
-
- try {
-
- const response = await fetch('/create_project', {
-
- method: 'POST',
-
- headers: { 'Content-Type': 'application/json' },
-
- body: JSON.stringify({
-
- task_id: currentTaskId,
-
- task_name: taskName
-
- })
-
- });
-
- const data = await response.json();
-
- if (data.success) {
-
- // 刷新任务列表
-
- loadTaskList();
-
- const successMessage = document.getElementById('successMessage');
-
- successMessage.style.display = 'block';
-
- successMessage.innerHTML = `
-
- <strong> 项目创建成功！</strong><br>
-
- 项目路径: ${data.creation_result.task_path}<br>
-
- 任务ID: ${data.creation_result.task_id}<br><br>
-
- 您现在可以在sci_tasks目录中看到生成的任务文件。
-
- <br><br>
-
- <button class="btn" onclick="goToPipeline('sci_tasks/tasks/${data.creation_result.task_id}')" style="width: auto; padding: 8px 16px; margin-top: 5px;">
-
- 跳转到流水线
-
- </button>
-
- `;
-
- } else {
-
- alert('创建失败: ' + data.error);
-
- }
-
- } catch (error) {
-
- alert('创建失败: ' + error);
-
- } finally {
-
- btn.disabled = false;
-
- btn.textContent = '创建sci_tasks项目';
-
- }
-
- });
-
- </script>
 
 
 
