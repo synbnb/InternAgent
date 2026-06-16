@@ -3518,140 +3518,63 @@ function renderSimpleMarkdown(md) {
  // 添加自定义数据集
 
  document.getElementById('addCustomDatasetBtn').addEventListener('click', () => {
-
- const name = document.getElementById('customDatasetName').value.trim();
-
- const description = document.getElementById('customDatasetDesc').value.trim();
-
-
-
- if (!name) {
-
- alert('请填写数据集名称');
-
- return;
-
-
-
-
- // 自动生成路径
-
- const path = 'data/' + name;
-
-
-
- const customDataset = {
-
- name: name,
-
- path: path,
-
- description: description || '自定义数据集',
-
- is_custom: true
-
- };
-
-
-
- // 更新数据集列表
-
- currentDatasets.push(customDataset);
-
-
-
- // 更新task_info
-
- if (currentTaskInfo) {
-
- currentTaskInfo.data = currentDatasets;
-
-
-
- // 更新显示
-
- const editor = document.getElementById('taskInfoEditor');
-
- editor.value = JSON.stringify(currentTaskInfo, null, 2);
-
- }
-
-
-
- // 添加到上传列表
-
- const dataUploadList = document.getElementById('dataUploadList');
-
- const customDiv = document.createElement('div');
-
- const customIndex = currentDatasets.length - 1;
-
- customDiv.className = 'data-item';
-
- customDiv.style.borderLeft = '4px solid #9c27b0';
-
- customDiv.innerHTML = `
-
- <div class="data-item-header">
-
- <div class="data-item-name"> ${name} <span style="font-size: 10px; background: #f3e5f5; padding: 2px 6px; border-radius: 3px;">自定义</span></div>
-
- <div class="dataset-controls">
-
- <button class="upload-btn" onclick="uploadDataFile('${customIndex}')" id="uploadBtn_${customIndex}">
-
- 上传文件
-
- </button>
-
- <button class="edit-btn" onclick="editDataset('${customIndex}')" id="editBtn_${customIndex}">
-
- 编辑
-
- </button>
-
- <button class="delete-btn" onclick="deleteDataset('${customIndex}')" id="deleteBtn_${customIndex}">
-
- 删除
-
- </button>
-
- <input type="file" class="file-input" id="fileInput_${customIndex}" onchange="handleDataFileUpload('${customIndex}', '${name}')">
-
- </div>
-
- </div>
-
- <div class="data-item-description">
-
- ${description}
-
- </div>
-
- <div class="data-item-requirements">
-
- 路径: ${path}
-
- </div>
-
- <div class="upload-status" id="uploadStatus_${customIndex}"></div>
-
- `;
-
- dataUploadList.appendChild(customDiv);
-
-
-
- // 清空输入
-
- document.getElementById('customDatasetName').value = '';
-
- document.getElementById('customDatasetDesc').value = '';
-
-
-
- alert(` 自定义数据集 "${name}" 已添加！`);
-
+	 const name = document.getElementById('customDatasetName').value.trim();
+	 const description = document.getElementById('customDatasetDesc').value.trim();
+
+	 if (!name) {
+		 alert('请填写数据集名称');
+		 return;
+	 }
+
+	 // 自动生成路径
+	 const path = 'data/' + name;
+
+	 const customDataset = {
+		 name: name,
+		 path: path,
+		 description: description || '自定义数据集',
+		 is_custom: true
+	 };
+
+	 // 更新数据集列表
+	 currentDatasets.push(customDataset);
+
+	 // 更新task_info
+	 if (currentTaskInfo) {
+		 currentTaskInfo.data = currentDatasets;
+
+		 // 更新显示
+		 const editor = document.getElementById('taskInfoEditor');
+		 editor.value = JSON.stringify(currentTaskInfo, null, 2);
+	 }
+
+	 // 添加到上传列表
+	 const dataUploadList = document.getElementById('dataUploadList');
+	 const customDiv = document.createElement('div');
+	 const customIndex = currentDatasets.length - 1;
+	 customDiv.className = 'data-item';
+	 customDiv.style.borderLeft = '4px solid #9c27b0';
+	 customDiv.innerHTML = `
+		 <div class="data-item-header">
+			 <div class="data-item-name"> ${name} <span style="font-size: 10px; background: #f3e5f5; padding: 2px 6px; border-radius: 3px;">自定义</span></div>
+			 <div class="dataset-controls">
+				 <button class="upload-btn" onclick="uploadDataFile('${customIndex}')" id="uploadBtn_${customIndex}">上传文件</button>
+				 <button class="edit-btn" onclick="editDataset('${customIndex}')" id="editBtn_${customIndex}">编辑</button>
+				 <button class="delete-btn" onclick="deleteDataset('${customIndex}')" id="deleteBtn_${customIndex}">删除</button>
+				 <input type="file" class="file-input" id="fileInput_${customIndex}" onchange="handleDataFileUpload('${customIndex}', '${name}')">
+			 </div>
+		 </div>
+		 <div class="data-item-description">${description}</div>
+		 <div class="data-item-requirements">路径: ${path}</div>
+		 <div class="upload-status" id="uploadStatus_${customIndex}"></div>
+	 `;
+	 dataUploadList.appendChild(customDiv);
+
+	 // 清空输入
+	 document.getElementById('customDatasetName').value = '';
+	 document.getElementById('customDatasetDesc').value = '';
+
+	 alert(`自定义数据集 "${name}" 已添加！`);
  });
 
 	 // 上传数据集按钮
