@@ -946,13 +946,21 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 
  <div style="background: var(--bg-canvas); border-radius: var(--radius-md); padding: 16px 20px; margin-bottom: 16px; border: 1px solid var(--border-light);">
 
- <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+	 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
 
- <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);"> 数据集列表</div>
+	 <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);"> 数据集列表</div>
 
- <button class="btn" id="addDatasetBtn" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0; background: var(--accent); display: none;">+ 添加数据集</button>
+	 <div style="display: flex; gap: 8px;">
 
- </div>
+	 <button class="btn" id="uploadDatasetBtn" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0; background: var(--success); display: none;">📁 上传数据集</button>
+
+	 <button class="btn" id="addDatasetBtn" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0; background: var(--accent); display: none;">+ 添加数据集</button>
+
+	 </div>
+
+	 </div>
+
+	 <input type="file" id="datasetFileInput" accept=".csv,.json,.txt,.zip,.tar.gz" style="display: none;" multiple>
 
  <div id="datasetList"></div>
 
@@ -2878,9 +2886,6 @@ function renderSimpleMarkdown(md) {
 
  </div>
 
- <div style="margin-left: 20px; margin-top: 5px;"> data/</div>
-
- <div style="margin-left: 40px;">${taskInfo.data?.map(d => ' ' + d.name).join('\n') || ' [数据集目录]'}</div>
 
  <div style="margin-left: 20px; margin-top: 5px;"> target_study/</div>
 
@@ -3205,6 +3210,7 @@ function renderSimpleMarkdown(md) {
    });
 
    document.getElementById('addDatasetBtn').style.display = 'inline-block';
+	   document.getElementById('uploadDatasetBtn').style.display = 'inline-block';
 
  }
 
@@ -3308,35 +3314,12 @@ function renderSimpleMarkdown(md) {
 
 
 
-   container.querySelectorAll('.checklist-edit-content').forEach(function(el) {
-
-     el.addEventListener('click', function() {
-
-       var idx = parseInt(this.dataset.index);
-
-       var oldContent = currentChecklist[idx] ? currentChecklist[idx].content : '';
-
-       var newContent = prompt('编辑评分项内容（第' + (idx+1) + '项）:', oldContent);
-
-       if (newContent !== null && newContent.trim()) {
-
-         currentChecklist[idx].content = newContent.trim();
-
-         renderChecklistWeights(currentChecklist);
-
-         document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
-
-         // 更新文件预览
-         if (storedResult) {
-           storedResult.checklist = currentChecklist;
-           displayFileStructure(storedResult);
-         }
-
-       }
-
-     });
-
-   });
+	   container.querySelectorAll('.checklist-edit-content').forEach(function(el) {
+	     el.addEventListener('click', function() {
+	       var idx = parseInt(this.dataset.index);
+	       openChecklistModal(idx);  // 使用新的模态框进行编辑
+	     });
+	   });
 
 
 
@@ -3530,25 +3513,7 @@ function renderSimpleMarkdown(md) {
 
  document.getElementById('addDatasetBtn').addEventListener('click', function() {
 
-   var name = prompt('数据集名称:');
-
-   if (!name) return;
-
-   var path = prompt('存储路径 (留空使用 data/{name}):') || ('data/' + name);
-
-   var desc = prompt('数据集描述:') || '';
-
-   currentDatasets.push({ name: name, path: path, description: desc, is_custom: true });
-
-   renderDatasetList(currentDatasets);
-
-   syncTaskInfoToEditor();
-
-   // 更新文件预览
-   if (storedResult && storedResult.task_info) {
-     storedResult.task_info.data = currentDatasets;
-     displayFileStructure(storedResult);
-   }
+   openAddDatasetModal();
 
  });
 
@@ -3556,27 +3521,9 @@ function renderSimpleMarkdown(md) {
 
  // 添加评分项按钮
 
- document.getElementById('addChecklistBtn').addEventListener('click', function() {
-
-   var c = prompt('请输入新的评分项内容:');
-
-   if (!c || !c.trim()) return;
-
-   var w = parseFloat(prompt('请输入权重（百分比，例如 10 表示 10%）:', '10')) || 0;
-
-   currentChecklist.push({ content: c.trim(), weight: w / 100 });
-
-   renderChecklistWeights(currentChecklist);
-
-   document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
-
-   // 更新文件预览
-   if (storedResult) {
-     storedResult.checklist = currentChecklist;
-     displayFileStructure(storedResult);
-   }
-
- });
+	 document.getElementById('addChecklistBtn').addEventListener('click', function() {
+	   openChecklistModal();  // 使用新的模态框
+	 });
 
 
 
@@ -3595,6 +3542,45 @@ function renderSimpleMarkdown(md) {
  alert('请填写数据集名称');
 
  return;
+
+	 // 上传数据集按钮
+	 document.getElementById('uploadDatasetBtn').addEventListener('click', function() {
+	   document.getElementById('datasetFileInput').click();
+	 });
+
+	 // 数据集文件选择处理
+	 document.getElementById('datasetFileInput').addEventListener('change', function(e) {
+	   const files = e.target.files;
+	   if (!files || files.length === 0) return;
+
+	   for (let i = 0; i < files.length; i++) {
+	     const file = files[i];
+	     const name = file.name;
+	     const path = 'data/' + name;
+	     const desc = `上传的数据集文件: ${name} (${(file.size / 1024).toFixed(2)} KB)`;
+
+	     currentDatasets.push({
+	       name: name,
+	       path: path,
+	       description: desc,
+	       is_custom: true,
+	       is_uploaded: true,
+	       file_size: file.size
+	     });
+	   }
+
+	   renderDatasetList(currentDatasets);
+	   syncTaskInfoToEditor();
+
+	   // 更新文件预览
+	   if (storedResult && storedResult.task_info) {
+	     storedResult.task_info.data = currentDatasets;
+	     displayFileStructure(storedResult);
+	   }
+
+	   // 清空文件选择
+	   document.getElementById('datasetFileInput').value = '';
+	 });
 
  }
 
@@ -3897,6 +3883,113 @@ function renderSimpleMarkdown(md) {
  document.getElementById('editModal').classList.remove('active');
 
  }
+
+	 // 添加数据集模态框函数
+	 function openAddDatasetModal() {
+		 document.getElementById('addDatasetName').value = '';
+		 document.getElementById('addDatasetPath').value = '';
+		 document.getElementById('addDatasetDesc').value = '';
+		 document.getElementById('addDatasetModal').classList.add('active');
+	 }
+
+	 function closeAddDatasetModal() {
+		 document.getElementById('addDatasetModal').classList.remove('active');
+	 }
+
+	 function saveAddDataset() {
+		 const name = document.getElementById('addDatasetName').value.trim();
+		 if (!name) {
+			 alert('请输入数据集名称');
+			 return;
+		 }
+
+		 let path = document.getElementById('addDatasetPath').value.trim();
+		 if (!path) {
+			 path = 'data/' + name;
+		 }
+
+		 const desc = document.getElementById('addDatasetDesc').value.trim();
+
+		 currentDatasets.push({
+			 name: name,
+			 path: path,
+			 description: desc,
+			 is_custom: true
+		 });
+
+		 renderDatasetList(currentDatasets);
+		 syncTaskInfoToEditor();
+
+		 // 更新文件预览
+		 if (storedResult && storedResult.task_info) {
+			 storedResult.task_info.data = currentDatasets;
+			 displayFileStructure(storedResult);
+		 }
+
+		 closeAddDatasetModal();
+	 }
+
+	 // 评分项模态框函数
+	 let editingChecklistIndex = null;
+
+	 function openChecklistModal(index = null) {
+		 editingChecklistIndex = index;
+
+		 if (index !== null && currentChecklist[index]) {
+			 // 编辑模式
+			 document.getElementById('checklistModalTitle').textContent = '编辑评分项';
+			 document.getElementById('checklistContent').value = currentChecklist[index].content || '';
+			 document.getElementById('checklistWeight').value = Math.round((currentChecklist[index].weight || 0) * 100);
+		 } else {
+			 // 添加模式
+			 document.getElementById('checklistModalTitle').textContent = '添加评分项';
+			 document.getElementById('checklistContent').value = '';
+			 document.getElementById('checklistWeight').value = '20';
+		 }
+
+		 document.getElementById('checklistModal').classList.add('active');
+	 }
+
+	 function closeChecklistModal() {
+		 document.getElementById('checklistModal').classList.remove('active');
+		 editingChecklistIndex = null;
+	 }
+
+	 function saveChecklistItem() {
+		 const content = document.getElementById('checklistContent').value.trim();
+		 if (!content) {
+			 alert('请输入评分项内容');
+			 return;
+		 }
+
+		 const weightPercent = parseFloat(document.getElementById('checklistWeight').value) || 0;
+		 const weight = weightPercent / 100;
+
+		 if (editingChecklistIndex !== null) {
+			 // 编辑现有评分项
+			 if (currentChecklist[editingChecklistIndex]) {
+				 currentChecklist[editingChecklistIndex].content = content;
+				 currentChecklist[editingChecklistIndex].weight = weight;
+			 }
+		 } else {
+			 // 添加新评分项
+			 currentChecklist.push({
+				 content: content,
+				 weight: weight
+			 });
+		 }
+
+		 renderChecklistWeights(currentChecklist);
+		 document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
+
+		 // 更新文件预览
+		 if (storedResult) {
+			 storedResult.checklist = currentChecklist;
+			 displayFileStructure(storedResult);
+		 }
+
+		 closeChecklistModal();
+	 }
 
 
 
@@ -4487,6 +4580,49 @@ function renderSimpleMarkdown(md) {
  </div>
 
  </div>
+
+	 <!-- 添加数据集模态框 -->
+	 <div class="edit-modal" id="addDatasetModal">
+		 <div class="edit-modal-content">
+			 <div class="edit-modal-title">添加新数据集</div>
+			 <div style="margin-bottom: 15px;">
+				 <label style="display: block; margin-bottom: 5px; font-weight: bold;">数据集名称:</label>
+				 <input type="text" class="feedback-input" id="addDatasetName" placeholder="例如: UniRef50">
+			 </div>
+			 <div style="margin-bottom: 15px;">
+				 <label style="display: block; margin-bottom: 5px; font-weight: bold;">存储路径:</label>
+				 <input type="text" class="feedback-input" id="addDatasetPath" placeholder="例如: data/UniRef50">
+			 </div>
+			 <div style="margin-bottom: 15px;">
+				 <label style="display: block; margin-bottom: 5px; font-weight: bold;">数据集描述:</label>
+				 <textarea class="feedback-input" id="addDatasetDesc" placeholder="例如: UniProt数据库在50%序列同一性下聚类的数据集"></textarea>
+			 </div>
+			 <div class="edit-modal-buttons">
+				 <button class="btn" onclick="saveAddDataset()" style="flex: 1;">添加数据集</button>
+				 <button class="btn" onclick="closeAddDatasetModal()" style="flex: 1; background: #f44336;">取消</button>
+			 </div>
+		 </div>
+	 </div>
+
+	 <!-- 添加/编辑评分项模态框 -->
+	 <div class="edit-modal" id="checklistModal">
+		 <div class="edit-modal-content">
+			 <div class="edit-modal-title" id="checklistModalTitle">添加评分项</div>
+			 <div style="margin-bottom: 15px;">
+				 <label style="display: block; margin-bottom: 5px; font-weight: bold;">评分项内容:</label>
+				 <textarea class="feedback-input" id="checklistContent" rows="4" placeholder="例如: 报告应详细描述实验方法的具体实现过程"></textarea>
+			 </div>
+			 <div style="margin-bottom: 15px;">
+				 <label style="display: block; margin-bottom: 5px; font-weight: bold;">权重 (%):</label>
+				 <input type="number" class="feedback-input" id="checklistWeight" placeholder="20" min="0" max="100" step="1">
+				 <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">注意: 所有评分项的权重总和应等于100%</div>
+			 </div>
+			 <div class="edit-modal-buttons">
+				 <button class="btn" onclick="saveChecklistItem()" style="flex: 1;">保存</button>
+				 <button class="btn" onclick="closeChecklistModal()" style="flex: 1; background: #f44336;">取消</button>
+			 </div>
+		 </div>
+	 </div>
 
 
 
