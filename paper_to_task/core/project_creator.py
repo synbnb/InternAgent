@@ -47,8 +47,13 @@ class ProjectCreator:
         Returns:
             创建结果
         """
-        # 查找可用的任务ID
-        task_id = find_available_task_name(self.base_dir, domain)
+        # 用用户输入的任务名称（或domain）作为目录前缀
+        prefix = task_name.strip() if task_name and task_name.strip() else domain
+        # 清理：只保留字母数字和下划线，空格转下划线
+        import re
+        prefix = re.sub(r'[^\w一-鿿]', '_', prefix)
+        prefix = re.sub(r'_+', '_', prefix).strip('_')
+        task_id = find_available_task_name(self.base_dir, prefix)
         task_dir = self.base_dir / task_id
 
         try:

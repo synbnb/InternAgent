@@ -3,7 +3,7 @@ Paper-to-Task Web应用
 提供Web界面让用户上传PDF并体验自动化生成流程
 """
 
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 import os
 import json
 import tempfile
@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from paper_to_task.pipeline import PaperToTaskPipeline
 from paper_to_task.interaction.cli_interface import CLIInterface
+from paper_to_task.interaction import pipeline_hooks
 
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
@@ -68,6 +69,11 @@ uploaded_files = {}
 def index():
     """首页"""
     return render_template('index.html')
+
+# 服务 interaction/static/ 目录下的静态文件（如 pipeline_review.js）
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(os.path.join(os.path.dirname(__file__), 'static'), filename)
 
 
 @app.route('/upload', methods=['POST'])
@@ -335,6 +341,64 @@ import time as time_module
 # 存储后台运行的任务状态
 pipeline_tasks = {}  # task_id -> {'process': Popen, 'output': [], 'status': 'running'|'done'|'error'}
 
+# 持久化存储流水线记录
+PIPELINE_DATA_DIR = Path(__file__).parent / 'pipeline_data'
+PIPELINE_TASKS_FILE = PIPELINE_DATA_DIR / 'tasks.json'
+PIPELINE_LOGS_DIR = PIPELINE_DATA_DIR / 'logs'
+
+PIPELINE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+PIPELINE_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+def _load_pipeline_tasks_from_disk():
+    """从磁盘加载历史流水线记录"""
+    if not PIPELINE_TASKS_FILE.exists():
+        return {}
+    try:
+        with open(PIPELINE_TASKS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[pipeline] 加载历史记录失败: {e}")
+        return {}
+
+def _save_pipeline_tasks_to_disk(tasks_dict):
+    """将流水线记录写入磁盘（不含进程句柄）"""
+    try:
+        serializable = {}
+        for uid, task in tasks_dict.items():
+            entry = {k: v for k, v in task.items() if k != 'process'}
+            serializable[uid] = entry
+        with open(PIPELINE_TASKS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(serializable, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[pipeline] 保存历史记录失败: {e}")
+
+def _append_pipeline_log(uuid, line):
+    """追加一行日志到文件"""
+    try:
+        log_file = PIPELINE_LOGS_DIR / f"{uuid}.log"
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(line + '\n')
+    except Exception as e:
+        print(f"[pipeline] 写入日志失败: {e}")
+
+def _get_pipeline_log_lines(uuid, max_lines=0):
+    """读取日志文件，max_lines=0 返回全部"""
+    log_file = PIPELINE_LOGS_DIR / f"{uuid}.log"
+    if not log_file.exists():
+        return []
+    try:
+        with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+            lines = f.readlines()
+        lines = [l.rstrip('\n\r') for l in lines]
+        if max_lines > 0 and len(lines) > max_lines:
+            lines = lines[-max_lines:]
+        return lines
+    except Exception as e:
+        return [f"[读取日志失败: {e}]"]
+
+# 启动时恢复已完成/出错的流水线记录
+_persisted_tasks = _load_pipeline_tasks_from_disk()
+
 
 @app.route('/start_pipeline', methods=['POST'])
 def start_pipeline():
@@ -355,8 +419,10 @@ def start_pipeline():
         return jsonify({'success': False, 'error': f'启动脚本不存在: {launch_script}'})
 
     try:
-        # 构建命令
-        python_bin = sys.executable
+        # 构建命令 — 使用InternAgent conda环境
+        python_bin = '/opt/conda/envs/InternAgent/bin/python3'
+        if not os.path.exists(python_bin):
+            python_bin = sys.executable  # fallback
         cmd = [python_bin, str(launch_script), '--task', task_path]
 
         if extra_args:
@@ -376,7 +442,7 @@ def start_pipeline():
         )
 
         # 记录任务
-        task_uuid = task_id or f"pipeline_{len(pipeline_tasks) + 1}"
+        task_uuid = task_id or f"pipeline_{int(time_module.time())}"
         pipeline_tasks[task_uuid] = {
             'process': process,
             'output': [],
@@ -386,6 +452,9 @@ def start_pipeline():
             'cmd': ' '.join(cmd),
             'task_path': task_path
         }
+
+        # 持久化保存
+        _save_pipeline_tasks_to_disk(pipeline_tasks)
 
         # 启动后台线程读取输出
         def read_output(task_uuid):
@@ -404,16 +473,22 @@ def start_pipeline():
                     if clean_line:
                         task['output'].append(clean_line)
                         task['stored_output'].append(clean_line)
+                        _append_pipeline_log(task_uuid, clean_line)
                 process.wait()
                 if process.returncode == 0:
                     task['status'] = 'completed'
                 else:
                     task['status'] = 'error'
-                    task['output'].append(f'进程退出码: {process.returncode}')
+                    err_line = f'进程退出码: {process.returncode}'
+                    task['output'].append(err_line)
+                    _append_pipeline_log(task_uuid, err_line)
             except Exception as e:
                 task['status'] = 'error'
-                task['output'].append(f'读取输出失败: {str(e)}')
+                err_line = f'读取输出失败: {str(e)}'
+                task['output'].append(err_line)
+                _append_pipeline_log(task_uuid, err_line)
             task['end_time'] = time_module.time()
+            _save_pipeline_tasks_to_disk(pipeline_tasks)
 
         thread = threading.Thread(target=read_output, args=(task_uuid,), daemon=True)
         thread.start()
@@ -434,21 +509,29 @@ def start_pipeline():
 
 @app.route('/pipeline_status', methods=['POST'])
 def pipeline_status():
-    """获取流水线状态"""
+    """获取流水线状态（支持活跃和历史任务）"""
     data = request.json
     pipeline_uuid = data.get('pipeline_uuid')
 
-    if not pipeline_uuid or pipeline_uuid not in pipeline_tasks:
-        return jsonify({'success': False, 'error': '流水线任务不存在'})
+    # 活跃任务
+    task = pipeline_tasks.get(pipeline_uuid)
+    is_historical = False
+    if not task:
+        # 尝试从历史记录恢复
+        task = _persisted_tasks.get(pipeline_uuid)
+        if not task:
+            return jsonify({'success': False, 'error': '流水线任务不存在'})
+        is_historical = True
 
-    task = pipeline_tasks[pipeline_uuid]
-
-    # 获取最新输出（最多返回最后500行）
-    output = task['output'][-500:]
-
-    # 计算运行时间
-    elapsed = time_module.time() - task['start_time']
-    elapsed_str = f"{int(elapsed // 60):02d}:{int(elapsed % 60):02d}"
+    # 获取输出：活跃任务从内存取，历史任务从文件读
+    if not is_historical:
+        output = task['output'][-500:]
+        elapsed = time_module.time() - task['start_time']
+        elapsed_str = f"{int(elapsed // 60):02d}:{int(elapsed % 60):02d}"
+    else:
+        output = _get_pipeline_log_lines(pipeline_uuid, max_lines=500)
+        elapsed = (task.get('end_time', task['start_time']) if task.get('end_time') else task['start_time']) - task['start_time']
+        elapsed_str = f"{int(elapsed // 60):02d}:{int(elapsed % 60):02d}"
 
     status_info = {
         'success': True,
@@ -457,16 +540,87 @@ def pipeline_status():
         'output': output,
         'elapsed': elapsed_str,
         'elapsed_seconds': int(elapsed),
-        'cmd': task['cmd'],
-        'task_path': task['task_path'],
-        'start_time': time_module.strftime('%H:%M:%S', time_module.localtime(task['start_time']))
+        'cmd': task.get('cmd', ''),
+        'task_path': task.get('task_path', ''),
+        'start_time': time_module.strftime('%H:%M:%S', time_module.localtime(task['start_time'])),
+        'is_historical': is_historical
     }
 
-    if task['status'] in ('completed', 'error'):
-        status_info['end_time'] = time_module.strftime('%H:%M:%S', time_module.localtime(task.get('end_time', time_module.time())))
+    if task.get('end_time'):
+        status_info['end_time'] = time_module.strftime('%H:%M:%S', time_module.localtime(task['end_time']))
 
     return jsonify(status_info)
 
+
+@app.route('/pipeline_history', methods=['GET'])
+def pipeline_history():
+    """获取历史流水线记录列表"""
+    # 合并活跃任务 + 已持久化的历史任务
+    seen = set()
+    records = []
+
+    # 先把持久化的历史记录加进来
+    for uid, t in _persisted_tasks.items():
+        seen.add(uid)
+        end_time = t.get('end_time', t['start_time'])
+        if t.get('status') in ('running',):
+            continue  # 历史记录中跳过 running（如果有残留）
+        records.append({
+            'uuid': uid,
+            'status': t.get('status', 'unknown'),
+            'task_path': t.get('task_path', ''),
+            'cmd': t.get('cmd', ''),
+            'start_time': time_module.strftime('%Y-%m-%d %H:%M:%S', time_module.localtime(t['start_time'])),
+            'start_ts': t['start_time'],
+            'end_time': time_module.strftime('%Y-%m-%d %H:%M:%S', time_module.localtime(end_time)),
+            'end_ts': end_time,
+            'elapsed': int(end_time - t['start_time']),
+            'is_active': False
+        })
+
+    # 再把活跃任务加进来（可能覆盖历史中的 running 残留）
+    for uid, t in pipeline_tasks.items():
+        seen.add(uid)
+        now = time_module.time()
+        records.append({
+            'uuid': uid,
+            'status': t['status'],
+            'task_path': t.get('task_path', ''),
+            'cmd': t.get('cmd', ''),
+            'start_time': time_module.strftime('%Y-%m-%d %H:%M:%S', time_module.localtime(t['start_time'])),
+            'start_ts': t['start_time'],
+            'end_time': time_module.strftime('%Y-%m-%d %H:%M:%S', time_module.localtime(t.get('end_time', now))),
+            'end_ts': t.get('end_time', now),
+            'elapsed': int((t.get('end_time', now)) - t['start_time']),
+            'is_active': t['status'] == 'running'
+        })
+
+    # 按启动时间倒序排列
+    records.sort(key=lambda r: r['start_ts'], reverse=True)
+
+    return jsonify({'success': True, 'records': records})
+
+
+@app.route('/pipeline_log_detail', methods=['POST'])
+def pipeline_log_detail():
+    """获取流水线完整日志"""
+    data = request.json
+    pipeline_uuid = data.get('pipeline_uuid')
+    max_lines = data.get('max_lines', 0)
+
+    lines = _get_pipeline_log_lines(pipeline_uuid, max_lines=max_lines)
+
+    # 也尝试从活跃任务取
+    task = pipeline_tasks.get(pipeline_uuid)
+    if not task:
+        task = _persisted_tasks.get(pipeline_uuid)
+
+    return jsonify({
+        'success': True,
+        'lines': lines,
+        'count': len(lines),
+        'status': task.get('status', 'unknown') if task else 'unknown'
+    })
 
 @app.route('/stop_pipeline', methods=['POST'])
 def stop_pipeline():
@@ -478,15 +632,69 @@ def stop_pipeline():
         return jsonify({'success': False, 'error': '流水线任务不存在'})
 
     task = pipeline_tasks[pipeline_uuid]
-    if task['status'] == 'running':
+    if task['status'] in ('running', 'paused'):
         task['process'].terminate()
         task['status'] = 'stopped'
-        task['output'].append('🛑 用户手动停止')
+        stop_line = '🛑 用户手动停止'
+        task['output'].append(stop_line)
+        _append_pipeline_log(pipeline_uuid, stop_line)
+    task['end_time'] = time_module.time()
+    _save_pipeline_tasks_to_disk(pipeline_tasks)
 
     return jsonify({
         'success': True,
         'message': '流水线已停止'
     })
+
+
+@app.route('/pause_pipeline', methods=['POST'])
+def pause_pipeline():
+    """暂停流水线（发送 SIGSTOP）"""
+    data = request.json
+    pipeline_uuid = data.get('pipeline_uuid')
+
+    if not pipeline_uuid or pipeline_uuid not in pipeline_tasks:
+        return jsonify({'success': False, 'error': '流水线任务不存在'})
+
+    task = pipeline_tasks[pipeline_uuid]
+    if task['status'] != 'running':
+        return jsonify({'success': False, 'error': f'当前状态为 {task["status"]}，无法暂停'})
+
+    try:
+        task['process'].send_signal(subprocess_module.signal.SIGSTOP)
+        task['status'] = 'paused'
+        pause_line = '⏸️ 流水线已暂停'
+        task['output'].append(pause_line)
+        _append_pipeline_log(pipeline_uuid, pause_line)
+        _save_pipeline_tasks_to_disk(pipeline_tasks)
+        return jsonify({'success': True, 'message': '流水线已暂停'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'暂停失败: {str(e)}'})
+
+
+@app.route('/resume_pipeline', methods=['POST'])
+def resume_pipeline():
+    """继续流水线（发送 SIGCONT）"""
+    data = request.json
+    pipeline_uuid = data.get('pipeline_uuid')
+
+    if not pipeline_uuid or pipeline_uuid not in pipeline_tasks:
+        return jsonify({'success': False, 'error': '流水线任务不存在'})
+
+    task = pipeline_tasks[pipeline_uuid]
+    if task['status'] != 'paused':
+        return jsonify({'success': False, 'error': f'当前状态为 {task["status"]}，无法继续'})
+
+    try:
+        task['process'].send_signal(subprocess_module.signal.SIGCONT)
+        task['status'] = 'running'
+        resume_line = '▶️ 流水线已继续'
+        task['output'].append(resume_line)
+        _append_pipeline_log(pipeline_uuid, resume_line)
+        _save_pipeline_tasks_to_disk(pipeline_tasks)
+        return jsonify({'success': True, 'message': '流水线已继续'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'继续失败: {str(e)}'})
 
 
 @app.route('/get_data_guidance', methods=['POST'])
@@ -650,6 +858,16 @@ CONFIG_SCHEMA = {
             'max_runs': {'label': '最大运行次数', 'type': 'int', 'min': 1, 'max': 20, 'desc': '总体实验运行次数'},
             'max_parallel_experiments': {'label': '最大并行实验数', 'type': 'int', 'min': 1, 'max': 8, 'desc': '并行执行的实验数量'},
             'use_mcts': {'label': '启用MCTS', 'type': 'bool', 'desc': '是否使用蒙特卡洛树搜索'},
+        }
+    },
+    'human_review': {
+        'label': '人工审批',
+        'fields': {
+            'idea_review': {'label': '想法审批', 'type': 'bool', 'desc': 'MAS生成想法后暂停，等待人工选择研究方向'},
+            'idea_timeout': {'label': '想法审批超时(秒)', 'type': 'int', 'min': 60, 'max': 86400, 'desc': '等待人工审批的最长时间'},
+            'result_review': {'label': '结果审查', 'type': 'bool', 'desc': '实验完成后暂停，展示结果供人工审阅'},
+            'result_timeout': {'label': '结果审查超时(秒)', 'type': 'int', 'min': 60, 'max': 86400, 'desc': '等待结果审查的最长时间'},
+            'poll_interval': {'label': '轮询间隔(秒)', 'type': 'int', 'min': 1, 'max': 60, 'desc': '前端轮询审批状态的间隔'},
         }
     },
     'memory.task_memory': {
@@ -928,6 +1146,465 @@ def polish_paper():
             'success': False,
             'error': f'润色失败: {str(e)}'
         })
+
+
+# ============================================================================
+# 流水线人工审批 API
+# ============================================================================
+
+
+@app.route('/pipeline/pending_ideas', methods=['POST'])
+def api_pending_ideas():
+    """获取待审批的想法列表"""
+    data = request.json
+    launch_dir = data.get('launch_dir', '')
+
+    if not launch_dir or not os.path.exists(launch_dir):
+        return jsonify({'success': False, 'error': '无效的启动目录'})
+
+    pending = pipeline_hooks.read_pending_ideas(launch_dir)
+
+    # 检查是否有待审批的想法
+    if not pending or pending.get('status') != pipeline_hooks.STATUS_WAITING:
+        return jsonify({
+            'success': True,
+            'status': 'none',
+            'ideas': [],
+            'message': '当前没有待审批的想法'
+        })
+
+    return jsonify({
+        'success': True,
+        'status': pipeline_hooks.STATUS_WAITING,
+        'session_id': pending.get('session_id'),
+        'total_count': pending.get('total_count', 0),
+        'ideas': pending.get('ideas', []),
+        'created_at': pending.get('created_at', 0),
+    })
+
+
+@app.route('/pipeline/approve_ideas', methods=['POST'])
+def api_approve_ideas():
+    """审批想法：选择/修改/否决"""
+    data = request.json
+    launch_dir = data.get('launch_dir', '')
+    action = data.get('action', 'approve')  # approve / reject
+    selected_ids = data.get('selected_ids')  # List[str] 或 None
+    modifications = data.get('modifications')  # Dict[str, Dict] 或 None
+
+    if not launch_dir or not os.path.exists(launch_dir):
+        return jsonify({'success': False, 'error': '无效的启动目录'})
+
+    try:
+        if action == 'reject':
+            result = pipeline_hooks.reject_ideas(
+                launch_dir,
+                reason=data.get('reason', '用户否决')
+            )
+            return jsonify({
+                'success': True,
+                'action': 'rejected',
+                'result': result
+            })
+
+        # approve
+        result = pipeline_hooks.approve_ideas(
+            launch_dir,
+            selected_ids=selected_ids,
+            modifications=modifications
+        )
+
+        if result.get('status') == 'error':
+            return jsonify({'success': False, 'error': result.get('message', '审批失败')})
+
+        return jsonify({
+            'success': True,
+            'action': 'approved',
+            'selected_count': result.get('selected_count', 0),
+            'total_count': result.get('total_count', 0),
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'审批操作失败: {str(e)}'
+        })
+
+
+@app.route('/pipeline/status', methods=['POST'])
+def api_pipeline_status():
+    """获取流水线审批状态（与原有的 pipeline_status 区分）"""
+    data = request.json
+    launch_dir = data.get('launch_dir', '')
+
+    if not launch_dir or not os.path.exists(launch_dir):
+        return jsonify({'success': False, 'error': '无效的启动目录'})
+
+    status = pipeline_hooks.get_pipeline_status(launch_dir)
+
+    return jsonify({
+        'success': True,
+        'status': status.get('status', 'unknown'),
+        'reviews': status.get('reviews', {}),
+        'message': status.get('message', ''),
+    })
+
+
+@app.route('/pipeline/result_review', methods=['POST'])
+def api_result_review():
+    """获取实验结果审查信息"""
+    data = request.json
+    launch_dir = data.get('launch_dir', '')
+    result_index = data.get('result_index', -1)
+
+    if not launch_dir or not os.path.exists(launch_dir):
+        return jsonify({'success': False, 'error': '无效的启动目录'})
+
+    review_dir = pipeline_hooks.get_review_dir(launch_dir)
+    result_file = os.path.join(review_dir, pipeline_hooks.RESULT_REVIEW_FILE)
+
+    state = pipeline_hooks.read_state(result_file)
+    if not state:
+        return jsonify({'success': True, 'has_results': False, 'results': []})
+
+    results = state.get('results', [])
+
+    # 如果指定了索引，只返回单个结果
+    if result_index >= 0 and result_index < len(results):
+        return jsonify({
+            'success': True,
+            'has_results': True,
+            'result': results[result_index],
+            'total': len(results),
+            'current_index': result_index,
+        })
+
+    return jsonify({
+        'success': True,
+        'has_results': len(results) > 0,
+        'results': results,
+        'total': len(results),
+    })
+
+
+@app.route('/pipeline/result_feedback', methods=['POST'])
+def api_result_feedback():
+    """提交实验结果反馈"""
+    data = request.json
+    launch_dir = data.get('launch_dir', '')
+    feedback = data.get('feedback', {})
+
+    if not launch_dir or not os.path.exists(launch_dir):
+        return jsonify({'success': False, 'error': '无效的启动目录'})
+
+    try:
+        pipeline_hooks.submit_result_feedback(launch_dir, feedback)
+        return jsonify({
+            'success': True,
+            'message': '反馈已提交'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'提交反馈失败: {str(e)}'
+        })
+
+
+@app.route('/pipeline/list_launches', methods=['POST'])
+def api_list_launches():
+    """列出指定任务的所有流水线启动目录（用于选择审批准入点）"""
+    data = request.json
+    task_name = data.get('task_name', '')
+
+    if not task_name:
+        return jsonify({'success': False, 'error': '缺少任务名称'})
+
+    results_base = os.path.join(
+        Path(__file__).parent.parent.parent,
+        'results',
+        task_name
+    )
+
+    if not os.path.exists(results_base):
+        return jsonify({'success': True, 'launches': []})
+
+    launches = []
+    for entry in sorted(os.listdir(results_base)):
+        launch_dir = os.path.join(results_base, entry)
+        if os.path.isdir(launch_dir) and entry.endswith('_launch'):
+            review_dir = pipeline_hooks.get_review_dir(launch_dir)
+            status = pipeline_hooks.get_pipeline_status(launch_dir)
+            launches.append({
+                'launch_id': entry,
+                'path': launch_dir,
+                'has_human_review': os.path.exists(review_dir),
+                'status': status.get('status', 'unknown'),
+            })
+
+    return jsonify({
+        'success': True,
+        'launches': launches,
+    })
+
+
+@app.route('/pipeline/list_experiment_results', methods=['POST'])
+def api_list_experiment_results():
+    """列出某个启动目录下所有实验的结果（用于结果审查 Dashboard）"""
+    data = request.json
+    launch_dir = data.get('launch_dir', '')
+
+    if not launch_dir or not os.path.exists(launch_dir):
+        return jsonify({'success': False, 'error': '无效的启动目录'})
+
+    experiments = []
+
+    # 扫描 launch_dir 下的 session_* 目录
+    for entry in sorted(os.listdir(launch_dir)):
+        entry_path = os.path.join(launch_dir, entry)
+        if not os.path.isdir(entry_path) or not entry.startswith('session_'):
+            continue
+
+        # 查找实验运行目录
+        run_dirs = sorted([
+            d for d in os.listdir(entry_path)
+            if d.startswith('run_') and os.path.isdir(os.path.join(entry_path, d))
+        ])
+
+        for run_dir_name in run_dirs:
+            run_path = os.path.join(entry_path, run_dir_name)
+            final_info_path = os.path.join(run_path, 'final_info.json')
+            report_path = os.path.join(run_path, 'report', 'report.md')
+
+            if not os.path.exists(final_info_path):
+                continue
+
+            try:
+                with open(final_info_path, 'r') as f:
+                    final_info = json.load(f)
+
+                scores = final_info.get('sci_task', {}).get('means', {})
+
+                # 尝试获取 idea 名称
+                idea_name = entry  # fallback: session name
+                ideas_file = os.path.join(launch_dir, 'run_0', 'final_info.json')
+                if os.path.exists(ideas_file):
+                    pass  # 保持现状
+
+                report_preview = ''
+                if os.path.exists(report_path):
+                    with open(report_path, 'r', encoding='utf-8') as f:
+                        report_text = f.read()
+                    report_preview = report_text[:500]
+
+                # 查找图片
+                images_dir = os.path.join(run_path, 'report', 'images')
+                images = []
+                if os.path.exists(images_dir):
+                    for img in sorted(os.listdir(images_dir))[:5]:
+                        img_path = os.path.join(images_dir, img)
+                        if os.path.isfile(img_path):
+                            images.append(img)
+
+                experiments.append({
+                    'session_id': entry,
+                    'run_id': run_dir_name,
+                    'path': run_path,
+                    'scores': scores,
+                    'has_report': os.path.exists(report_path),
+                    'report_preview': report_preview,
+                    'images': images,
+                    'has_final_info': True,
+                })
+            except Exception as e:
+                experiments.append({
+                    'session_id': entry,
+                    'run_id': run_dir_name,
+                    'path': run_path,
+                    'error': str(e),
+                })
+
+    return jsonify({
+        'success': True,
+        'experiments': experiments,
+        'total': len(experiments),
+    })
+
+
+@app.route('/pipeline/list_results_dir', methods=['POST'])
+def api_list_results_dir():
+    """列出 results/ 目录结构"""
+    data = request.json
+    task_name = data.get('task_name', '')
+
+    results_base = os.path.join(
+        Path(__file__).parent.parent.parent,
+        'results'
+    )
+
+    if not os.path.exists(results_base):
+        return jsonify({'success': False, 'error': 'results 目录不存在'})
+
+    # 如果指定了 task_name，列出该任务的结构
+    if task_name:
+        task_dir = os.path.join(results_base, task_name)
+        if not os.path.exists(task_dir):
+            return jsonify({'success': False, 'error': f'任务 {task_name} 不存在'})
+        tree = _build_dir_tree(task_dir, max_depth=6, max_files=200)
+        return jsonify({'success': True, 'task_name': task_name, 'tree': tree})
+
+    # 否则列出所有任务
+    tasks = []
+    for entry in sorted(os.listdir(results_base)):
+        entry_path = os.path.join(results_base, entry)
+        if entry.startswith('.'):
+            continue
+        size = _get_dir_size(entry_path) if os.path.isdir(entry_path) else os.path.getsize(entry_path)
+        modified = os.path.getmtime(entry_path)
+        tasks.append({
+            'name': entry,
+            'is_dir': os.path.isdir(entry_path),
+            'size': size,
+            'size_display': _format_size(size),
+            'modified': modified,
+            'modified_display': time_module.strftime('%Y-%m-%d %H:%M', time_module.localtime(modified)),
+        })
+
+    return jsonify({'success': True, 'tasks': tasks})
+
+
+@app.route('/pipeline/read_result_file', methods=['POST'])
+def api_read_result_file():
+    """读取 results/ 下的某个文件内容"""
+    data = request.json
+    file_path = data.get('file_path', '')
+
+    if not file_path:
+        return jsonify({'success': False, 'error': '文件路径不能为空'})
+
+    # 安全检查：确保文件在 results 目录下
+    results_base = os.path.join(Path(__file__).parent.parent.parent, 'results')
+    real_path = os.path.realpath(file_path)
+    real_base = os.path.realpath(results_base)
+    if not real_path.startswith(real_base):
+        return jsonify({'success': False, 'error': '不允许访问 results 目录以外的文件'})
+
+    if not os.path.exists(real_path) or not os.path.isfile(real_path):
+        return jsonify({'success': False, 'error': '文件不存在'})
+
+    try:
+        size = os.path.getsize(real_path)
+        # 限制读取大小（5MB）
+        MAX_SIZE = 5 * 1024 * 1024
+        if size > MAX_SIZE:
+            return jsonify({
+                'success': False,
+                'error': f'文件过大 ({_format_size(size)})，不支持在线预览',
+                'too_large': True,
+                'size': size,
+                'size_display': _format_size(size)
+            })
+
+        ext = os.path.splitext(real_path)[1].lower()
+        text_exts = {'.json', '.md', '.txt', '.py', '.yaml', '.yml', '.cfg', '.ini',
+                     '.log', '.csv', '.tsv', '.html', '.css', '.js', '.sh', '.toml',
+                     '.xml', '.tex', '.rst', '.env', '.gitignore'}
+
+        if ext in text_exts:
+            with open(real_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+            return jsonify({
+                'success': True,
+                'content': content,
+                'type': 'text',
+                'size': size,
+                'size_display': _format_size(size),
+                'filename': os.path.basename(real_path),
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'content': None,
+                'type': 'binary',
+                'size': size,
+                'size_display': _format_size(size),
+                'filename': os.path.basename(real_path),
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'读取文件失败: {str(e)}'
+        })
+
+
+def _build_dir_tree(path, max_depth=4, max_files=100, current_depth=0):
+    """构建目录树（递归）"""
+    if current_depth > max_depth:
+        return {'name': os.path.basename(path), 'type': 'truncated', 'children': []}
+
+    entries = []
+    try:
+        for entry in sorted(os.listdir(path)):
+            if entry.startswith('.') or entry.startswith('__pycache__'):
+                continue
+            full_path = os.path.join(path, entry)
+            if os.path.isdir(full_path):
+                children = _build_dir_tree(full_path, max_depth, max_files, current_depth + 1)
+                if children is not None:
+                    entries.append({
+                        'name': entry,
+                        'type': 'dir',
+                        'path': full_path,
+                        'children': children.get('children', []),
+                        'size': children.get('size', 0),
+                    })
+            else:
+                size = os.path.getsize(full_path)
+                entries.append({
+                    'name': entry,
+                    'type': 'file',
+                    'path': full_path,
+                    'size': size,
+                    'size_display': _format_size(size),
+                })
+    except PermissionError:
+        return None
+
+    # 限制条目数
+    if len(entries) > max_files:
+        entries = entries[:max_files]
+
+    total_size = sum(e.get('size', 0) for e in entries)
+    return {
+        'name': os.path.basename(path),
+        'type': 'dir',
+        'path': path,
+        'children': entries,
+        'size': total_size,
+        'size_display': _format_size(total_size),
+    }
+
+
+def _get_dir_size(path):
+    """计算目录总大小"""
+    total = 0
+    try:
+        for dirpath, dirnames, filenames in os.walk(path):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                if os.path.exists(fp):
+                    total += os.path.getsize(fp)
+    except (PermissionError, OSError):
+        pass
+    return total
+
+
+def _format_size(size):
+    """格式化文件大小"""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 if __name__ == '__main__':

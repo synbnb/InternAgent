@@ -21,6 +21,9 @@ from dotenv import load_dotenv  # 从 .env 文件加载环境变量
 from internagent.stage import IdeaGenerator, ExperimentRunner
 from typing import List, Dict, Any, Optional  # 类型注解工具
 
+# 导入流水线人工介入钩子
+from paper_to_task.interaction import pipeline_hooks
+
 # 尝试导入长期记忆模块（可选依赖，不存在时优雅降级）
 try:
     from internagent.mas.memory.long_memory import MemoryModule, ExperienceGenerator
@@ -904,6 +907,63 @@ def main():
             except Exception as e:
                 logger.warning(f"Failed to clear memory cache: {e}")
 
+            # ★ 新增：人工想法审批环节
+            human_review_enabled = config.get('human_review', {}).get('idea_review', True)
+            if human_review_enabled:
+                logger.info("─" * 60)
+                logger.info("🧪 HUMAN REVIEW: Waiting for idea approval...")
+                logger.info(f"   Generated {len(top_ideas)} ideas, writing to review state")
+                logger.info("─" * 60)
+
+                # 写入待审批状态
+                pipeline_hooks.write_pending_ideas(
+                    args.output_dir, session_id, top_ideas
+                )
+
+                # 获取超时配置
+                idea_timeout = config.get('human_review', {}).get('idea_timeout', 3600)
+                logger.info(f"   Review timeout: {idea_timeout}s (config: human_review.idea_timeout)")
+                logger.info(f"   Open the web UI and navigate to Pipeline → Idea Review to approve")
+                logger.info(f"   State directory: {pipeline_hooks.get_review_dir(args.output_dir)}")
+
+                # 轮询等待审批结果
+                approved_state = pipeline_hooks.wait_for_state_change(
+                    os.path.join(pipeline_hooks.get_review_dir(args.output_dir),
+                                 pipeline_hooks.IDEAS_PENDING_FILE),
+                    timeout=idea_timeout,
+                )
+
+                if approved_state and approved_state.get('status') == pipeline_hooks.STATUS_APPROVED:
+                    approved_ideas = approved_state.get('ideas', [])
+                    approved_ids = [idea.get('id') for idea in approved_ideas]
+
+                    # 从 top_ideas 中筛选出被批准的
+                    if approved_ids:
+                        top_ideas = [
+                            idea for idea in top_ideas
+                            if idea.get('id') in approved_ids
+                        ]
+                        logger.info(f"✓ Human approved {len(top_ideas)}/{approved_state.get('total_count', len(top_ideas))} ideas")
+
+                    # 应用用户对 idea 的修改
+                    for approved in approved_ideas:
+                        modified_method = approved.get('method')
+                        modified_desc = approved.get('description')
+                        if modified_method or modified_desc:
+                            for idea in top_ideas:
+                                idea_details = idea.get('refined_method_details', {})
+                                if modified_method and not idea_details.get('method', '').endswith(modified_method):
+                                    idea_details['method'] = modified_method
+                                if modified_desc and not idea_details.get('description', '').endswith(modified_desc):
+                                    idea_details['description'] = modified_desc
+                elif approved_state and approved_state.get('status') == pipeline_hooks.STATUS_REJECTED:
+                    logger.warning("⚠ Human rejected all ideas, using system defaults")
+                    # 保留原始 top_ideas 作为后备
+                else:
+                    logger.warning(f"⚠ Human review timeout or skipped, using system top {len(top_ideas)} ideas")
+            else:
+                logger.info("Human review disabled, continuing with all ideas")
+
         # 步骤 2：实验执行或报告生成
         logger.info("=" * 80)
 
@@ -974,6 +1034,83 @@ def main():
                 import traceback
                 traceback.print_exc()
                 sys.exit(1)  # 实验执行失败，退出程序
+
+            # ★ 新增：实验结果人工审查环节
+            result_review_enabled = config.get('human_review', {}).get('result_review', True)
+            if result_review_enabled and results:
+                logger.info("─" * 60)
+                logger.info("🔬 HUMAN REVIEW: Experiment results ready for review...")
+                logger.info(f"   {len(results)} experiments completed")
+                logger.info("─" * 60)
+
+                # 为每个成功的实验结果写入审查状态
+                for result in results:
+                    if result.get('success'):
+                        code_path = result.get('code_path', '')
+                        if code_path:
+                            # 尝试读取 final_info.json 中的评分
+                            final_info_path = osp.join(code_path, 'final_info.json')
+                            scores = {}
+                            if osp.exists(final_info_path):
+                                try:
+                                    with open(final_info_path) as f:
+                                        final_info = json.load(f)
+                                    scores = final_info.get('sci_task', {}).get('means', {})
+                                except Exception:
+                                    pass
+
+                            # 读取 report.md 预览
+                            report_text = ''
+                            report_path = osp.join(code_path, 'report', 'report.md')
+                            if osp.exists(report_path):
+                                try:
+                                    with open(report_path, 'r', encoding='utf-8') as f:
+                                        report_text = f.read()[:3000]
+                                except Exception:
+                                    pass
+
+                            # 查找图片
+                            images_dir = osp.join(code_path, 'report', 'images')
+                            images = []
+                            if osp.exists(images_dir):
+                                images = [osp.join(images_dir, img)
+                                         for img in sorted(os.listdir(images_dir))[:5]
+                                         if osp.isfile(osp.join(images_dir, img))]
+
+                            pipeline_hooks.write_result_for_review(
+                                args.output_dir,
+                                idea_name=result.get('idea_name', 'unknown'),
+                                run_num=0,
+                                scores=scores,
+                                report_text=report_text,
+                                report_images=images,
+                            )
+
+                # 等待用户审查确认
+                result_timeout = config.get('human_review', {}).get('result_timeout', 1800)
+                logger.info(f"   Review timeout: {result_timeout}s")
+                logger.info(f"   Open the web UI → Pipeline → Result Review to examine results")
+
+                review_dir = pipeline_hooks.get_review_dir(args.output_dir)
+                result_file = osp.join(review_dir, pipeline_hooks.RESULT_FEEDBACK_FILE)
+
+                feedback_state = pipeline_hooks.wait_for_state(
+                    result_file,
+                    pipeline_hooks.STATUS_APPROVED,
+                    timeout=result_timeout,
+                )
+
+                if feedback_state:
+                    feedback = feedback_state.get('feedback', {})
+                    if feedback.get('overrides'):
+                        # 用户提供了评分覆盖
+                        logger.info(f"✓ Human review submitted with score overrides")
+                    elif feedback.get('selected_best'):
+                        # 用户手动选择了最佳结果
+                        selected_best = feedback.get('selected_best')
+                        logger.info(f"✓ Human selected best result: {selected_best}")
+                else:
+                    logger.info("⚠ Result review timeout, using system auto-selection")
 
         # 存储本轮结果
         round_result = {

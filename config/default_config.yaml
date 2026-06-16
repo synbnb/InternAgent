@@ -47,26 +47,26 @@ tools:
 agents:
   generation:
     model_provider: default
-    generation_count: 15
+    generation_count: 1
     creativity: 0.7
-    do_survey: true
-    use_memory: true
-    filter_failed_ideas: true
+    do_survey: false
+    use_memory: false
+    filter_failed_ideas: false
     failed_similarity_threshold: 0.7
-    max_regeneration_attempts: 2
+    max_regeneration_attempts: 1
   reflection:
-    count: 3
+    count: 1
     model_provider: default
     detail_level: medium
   evolution:
     model_provider: default
-    evolution_count: 2
+    evolution_count: 1
     creativity_level: 0.6
     temperature: 0.7
-    use_memory: true
-    filter_failed_ideas: true
+    use_memory: false
+    filter_failed_ideas: false
     failed_similarity_threshold: 0.7
-    max_regeneration_attempts: 2
+    max_regeneration_attempts: 1
   method_development:
     model_provider: openai
   refinement:
@@ -105,10 +105,10 @@ agents:
     use_llm_for_metric_direction: true
     use_llm_for_primary_metric: true
 workflow:
-  max_iterations: 2
-  top_ideas_count: 2
+  max_iterations: 1
+  top_ideas_count: 1
   top_ideas_evo: true
-  max_concurrent_tasks: 2
+  max_concurrent_tasks: 1
   loop_rounds: 1
   loop_mode: incremental
 sci_task:
@@ -121,3 +121,13 @@ experiment:
   max_runs: 1
   max_parallel_experiments: 1
   gpu_per_experiment: 1.0
+human_review:
+  idea_review: true
+  idea_timeout: 3600
+  result_review: true
+  result_timeout: 1800
+  poll_interval: 5
+scholar:
+  search_depth: light
+survey:
+  max_papers: null

@@ -416,6 +416,16 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 
  <button class="btn" id="processBtn" disabled>开始处理</button>
 
+<div class="quality-card" id="uploadQualityCard" style="display: none;">
+ <div class="quality-score">
+ <div>
+ <div style="font-size: 14px; color: #666; margin-bottom: 5px;">质量评分</div>
+ <div class="score-value" id="scoreValue">0.73</div>
+ </div>
+ <div class="score-grade" id="scoreGrade">C</div>
+ </div>
+ <div class="dimension-scores" id="dimensionScores"></div>
+ </div>
  <!-- 进度显示 -->
  <div class="progress-container" id="progressContainer">
  <div class="progress-bar">
@@ -427,16 +437,7 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
  <!-- 结果显示 -->
  <div class="result-container" id="resultContainer">
  <!-- 质量评分 -->
- <div class="quality-card">
- <div class="quality-score">
- <div>
- <div style="font-size: 14px; color: #666; margin-bottom: 5px;">质量评分</div>
- <div class="score-value" id="scoreValue">0.73</div>
- </div>
- <div class="score-grade" id="scoreGrade">C</div>
- </div>
- <div class="dimension-scores" id="dimensionScores"></div>
- </div>
+ 
 
  <!-- 内容显示 -->
  <div class="content-section">
@@ -453,37 +454,54 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 
  <!-- 概览标签页 -->
  <div class="tab-content active" id="overview">
- <div class="section-title"> 任务描述 <span style="font-size: 11px; color: #4caf50;"> 可改进</span></div>
- <div class="task-info-card" id="taskInfo"></div>
-
- <!-- 在线编辑区域 -->
- <div class="edit-section">
- <div class="section-title"> 在线编辑 task_info.json</div>
- <div class="edit-box">
- <textarea class="json-editor" id="taskInfoEditor" placeholder="编辑JSON内容..."></textarea>
- <div class="edit-controls">
- <button class="btn" id="saveTaskInfoBtn" style="width: auto; padding: 8px 16px;"> 保存修改</button>
- <span style="font-size: 11px; color: #666;">修改后点击保存，将更新内存中的内容</span>
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+ <div class="section-title" style="margin-bottom: 0;"> 任务审查与调整</div>
+ <button class="btn" id="toggleTaskReviewLockBtn" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0; background: var(--accent);"> 锁定配置</button>
  </div>
- </div>
+ <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+ 审查并调整任务描述、数据集和评分项权重，确认后锁定开始流水线。
  </div>
 
- <div class="section-title"> 评分项 <span style="font-size: 11px; color: #4caf50;"> 可改进</span></div>
- <div class="checklist-card" id="checklistItems"></div>
-
- <!-- 在线编辑区域 -->
- <div class="edit-section">
- <div class="section-title"> 在线编辑 checklist.json</div>
- <div class="edit-box">
- <textarea class="json-editor" id="checklistEditor" placeholder="编辑JSON内容..."></textarea>
- <div class="edit-controls">
- <button class="btn" id="saveChecklistBtn" style="width: auto; padding: 8px 16px;"> 保存修改</button>
- <span style="font-size: 11px; color: #666;">修改后点击保存，将更新内存中的内容</span>
- </div>
- </div>
- </div>
+ <!-- 任务描述 -->
+ <div style="background: var(--bg-canvas); border-radius: var(--radius-md); padding: 16px 20px; margin-bottom: 16px; border: 1px solid var(--border-light);">
+ <div style="font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;"> 研究任务描述</div>
+ <div id="taskInfo"></div>
+ <textarea class="feedback-input" id="taskDescEditor" placeholder="输入任务描述..."
+ style="min-height: 80px; font-size: 13px; margin-top: 8px; display: none;"></textarea>
  </div>
 
+ <!-- 数据集列表 -->
+ <div style="background: var(--bg-canvas); border-radius: var(--radius-md); padding: 16px 20px; margin-bottom: 16px; border: 1px solid var(--border-light);">
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+ <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);"> 数据集列表</div>
+ <button class="btn" id="addDatasetBtn" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0; background: var(--accent); display: none;">+ 添加数据集</button>
+ </div>
+ <div id="datasetList"></div>
+ </div>
+
+ <!-- 评分项权重 -->
+ <div style="background: var(--bg-canvas); border-radius: var(--radius-md); padding: 16px 20px; margin-bottom: 16px; border: 1px solid var(--border-light);">
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+ <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);"> 评分项（权重总和须为 100%）</div>
+ <button class="btn" id="addChecklistBtn" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0; background: var(--accent); display: none;">+ 添加评分项</button>
+ </div>
+ <div id="checklistItems"></div>
+ <div id="weightTotalDisplay" style="font-size: 12px; font-weight: bold; margin-top: 8px; padding: 6px 10px; background: var(--bg-surface); border-radius: var(--radius-sm);"></div>
+ </div>
+
+ <!-- 操作按钮 -->
+ <div class="edit-controls" style="display: flex; gap: 8px; flex-wrap: wrap;">
+ <button class="btn" id="saveTaskReviewBtn" style="width: auto; padding: 8px 20px; display: none;"> 保存修改</button>
+ <button class="btn" id="unlockTaskReviewBtn" style="width: auto; padding: 8px 20px; background: var(--text-secondary); display: none;"> 解锁编辑</button>
+ <span id="taskReviewStatus" style="font-size: 12px; color: var(--text-tertiary); align-self: center;"></span>
+ </div>
+
+ <!-- 隐藏的 JSON 编辑器（用于保存时同步数据） -->
+ <div style="display: none;">
+ <textarea id="taskInfoEditor"></textarea>
+ <textarea id="checklistEditor"></textarea>
+ </div>
+ </div>
  <!-- 文件预览标签页 -->
  <div class="tab-content" id="files">
  <div class="section-title"> 项目文件结构</div>
@@ -733,11 +751,14 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 	 </div>
 
 	 <!-- 切换按钮 -->
-	 <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+	 <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
 	 <button class="btn paper-view-btn active" id="paperRawBtn" onclick="switchPaperView('raw')" style="width: auto; padding: 6px 18px; font-size: 13px; margin-top: 0;"> 原文</button>
 	 <button class="btn paper-view-btn" id="paperPolishedBtn" onclick="switchPaperView('polished')" style="width: auto; padding: 6px 18px; font-size: 13px; margin-top: 0; background: var(--text-secondary);"> AI润色</button>
 	 <span id="paperLoading" style="display: none; font-size: 13px; color: var(--accent); margin-left: 8px; align-self: center;">⏳ AI润色中...</span>
 	 <span id="paperError" style="display: none; font-size: 13px; color: var(--danger); margin-left: 8px; align-self: center;"></span>
+	 <div style="flex: 1;"></div>
+	 <button class="btn" id="exportMdBtn" onclick="exportPaper('md')" style="width: auto; padding: 6px 16px; font-size: 12px; margin-top: 0; background: var(--text-secondary); display: none;"> 导出 Markdown</button>
+	 <button class="btn" id="exportHtmlBtn" onclick="exportPaper('html')" style="width: auto; padding: 6px 16px; font-size: 12px; margin-top: 0; background: var(--accent); display: none;"> 导出 HTML</button>
 	 </div>
 
 	 <!-- 内容区域 -->
@@ -857,6 +878,7 @@ let currentPolishedMarkdown = null;
  function showProgress(show) {
  document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
  document.getElementById('resultContainer').style.display = show ? 'none' : 'none';
+ if (show) document.getElementById('uploadQualityCard').style.display = 'none';
  }
 
  function updateProgress(percent, text) {
@@ -867,6 +889,15 @@ let currentPolishedMarkdown = null;
  // 显示结果
  function displayResult(result) {
  document.getElementById('resultContainer').style.display = 'block';
+ document.getElementById('uploadQualityCard').style.display = '';
+
+ // 自动切换到概览标签
+ document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+ document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+ const ovBtn = document.querySelector('[data-tab="overview"]');
+ if (ovBtn) { ovBtn.classList.add('active'); }
+ const ovTab = document.getElementById('overview');
+ if (ovTab) { ovTab.classList.add('active'); }
 
  // 质量评分（百分制）
  const score = result.quality.score;
@@ -923,6 +954,9 @@ let currentPolishedMarkdown = null;
  ${dataItems}
  </div>
  `;
+
+ // 使用结构化任务审查
+ renderTaskReview(result);
 
  // 显示研究详情
  if (result.research_doc) {
@@ -1140,6 +1174,17 @@ function switchPaperView(view) {
         document.getElementById('paperRawInner').textContent = currentRawMarkdown;
     }
 
+    // 切换导出按钮可见性
+    if (view === 'raw') {
+        document.getElementById('exportMdBtn').style.display = 'none';
+        document.getElementById('exportHtmlBtn').style.display = 'none';
+    } else if (view === 'polished') {
+        if (currentPolishedMarkdown) {
+            document.getElementById('exportMdBtn').style.display = '';
+            document.getElementById('exportHtmlBtn').style.display = '';
+        }
+    }
+
     // 如果切换到润色版且没有内容，调用润色API
     if (view === 'polished') {
         if (!currentRawMarkdown) {
@@ -1152,6 +1197,51 @@ function switchPaperView(view) {
         }
     }
 }
+
+
+// 导出论文（Markdown 或 HTML）
+function exportPaper(format) {
+    var exportContent = '';
+    var filename = (currentTaskId || 'paper') + '_polished';
+    if (format === 'md') {
+        if (currentPolishedMarkdown) {
+            exportContent = currentPolishedMarkdown;
+        } else {
+            exportContent = document.getElementById('paperRawInner').textContent;
+            filename = (currentTaskId || 'paper') + '_raw';
+        }
+        filename += '.md';
+    } else {
+        var polishedHtml = document.getElementById('paperPolishedInner').innerHTML;
+        if (polishedHtml && !polishedHtml.includes('润色')) {
+            exportContent = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>' + (currentTaskId || 'paper') + '</title>' +
+                '<style>body{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;max-width:900px;margin:0 auto;padding:40px 32px;line-height:1.9;color:#2C2824}' +
+                'h1{font-size:28px;font-weight:700;margin:32px 0 16px;border-bottom:2px solid #8B7355;padding-bottom:8px}' +
+                'h2{font-size:22px;font-weight:600;margin:24px 0 12px}' +
+                'h3{font-size:18px;font-weight:600;margin:20px 0 10px}' +
+                'p{margin:10px 0;text-align:justify}' +
+                'blockquote{margin:12px 0;padding:10px 16px;background:#f8f6f2;border-left:4px solid #8B7355;border-radius:4px;font-style:italic}' +
+                'code{background:#f0ece4;padding:2px 6px;border-radius:3px;font-size:13px}' +
+                'pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:8px;overflow-x:auto}' +
+                'th,td{border:1px solid #e5ddd3;padding:8px 12px;text-align:left}' +
+                'th{background:#f0ece4}' +
+                '</style></head><body>' + polishedHtml + '</body></html>';
+            filename += '.html';
+        } else {
+            exportContent = document.getElementById('paperRawInner').textContent;
+            filename = (currentTaskId || 'paper') + '_raw.md';
+        }
+    }
+    if (!exportContent) { alert('没有可导出的内容，请先上传PDF'); return; }
+    var blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 
 // 调用AI润色论文
 async function polishPaper() {
@@ -1174,6 +1264,8 @@ async function polishPaper() {
         if (data.success) {
             currentPolishedMarkdown = data.polished;
             contentEl.innerHTML = renderSimpleMarkdown(data.polished);
+            document.getElementById("exportMdBtn").style.display = "";
+            document.getElementById("exportHtmlBtn").style.display = "";
         } else {
             errorEl.textContent = '润色失败: ' + (data.error || '未知错误');
             errorEl.style.display = 'block';
@@ -1531,6 +1623,245 @@ function renderSimpleMarkdown(md) {
  } catch (e) {
  alert(' JSON格式错误：' + e.message);
  }
+ });
+
+
+
+ // ============================================================
+ // 结构化任务审查界面（Task Review）
+ // ============================================================
+ let isTaskReviewLocked = false;
+
+ function renderTaskReview(result) {
+   const taskInfo = result.task_info || {};
+   const checklist = result.checklist || [];
+
+   const taskSourceHtml = taskInfo.task_source
+     ? formatSourceCitation(taskInfo.task_source)
+     : (taskInfo._source ? formatSourceCitation(taskInfo._source) : '');
+   document.getElementById('taskInfo').innerHTML = `
+     <div style="font-size: 13px; line-height: 1.6;">
+       <strong>任务:</strong> ${taskInfo.task || '无'}
+       ${taskSourceHtml}
+     </div>
+   `;
+   document.getElementById('taskDescEditor').value = taskInfo.task || '';
+   document.getElementById('taskDescEditor').style.display = 'block';
+
+   const datasets = taskInfo.data || [];
+   currentDatasets = datasets;
+   renderDatasetList(datasets);
+   renderChecklistWeights(checklist);
+
+   isTaskReviewLocked = false;
+   updateTaskReviewLockUI();
+ }
+
+ function renderDatasetList(datasets) {
+   const container = document.getElementById('datasetList');
+   if (!datasets.length) {
+     container.innerHTML = '<div style="font-size: 12px; color: var(--text-tertiary); padding: 8px;">暂无数据集</div>';
+     return;
+   }
+   container.innerHTML = datasets.map((d, i) => {
+     const srcHtml = d._source
+       ? '<div style="font-size: 10px; color: var(--accent); margin-top: 4px; font-style: italic;">' + d._source.slice(0, 120) + '</div>'
+       : '';
+     return '<div class="dataset-item" data-index="' + i + '" style="background: var(--bg-surface); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 6px; border: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: flex-start;">' +
+       '<div style="flex: 1;">' +
+       '<div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">' + escapeHtml(d.name || '') + '</div>' +
+       '<div style="font-size: 11px; color: var(--text-secondary);">路径: ' + escapeHtml(d.path || '') + '</div>' +
+       '<div style="font-size: 11px; color: var(--text-secondary);">' + escapeHtml(d.description || '') + '</div>' +
+       srcHtml + '</div>' +
+       '<div style="display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px;">' +
+       '<button class="btn edit-dataset-btn" data-index="' + i + '" style="width: auto; padding: 2px 8px; font-size: 10px; margin: 0; background: var(--text-secondary);">编辑</button>' +
+       '<button class="btn delete-dataset-btn" data-index="' + i + '" style="width: auto; padding: 2px 8px; font-size: 10px; margin: 0; background: var(--danger);">删除</button>' +
+       '</div></div>';
+   }).join('');
+
+   container.querySelectorAll('.edit-dataset-btn').forEach(btn => {
+     btn.addEventListener('click', function() {
+       const idx = parseInt(this.dataset.index);
+       openDatasetEditModal(idx);
+     });
+   });
+   container.querySelectorAll('.delete-dataset-btn').forEach(btn => {
+     btn.addEventListener('click', function() {
+       const idx = parseInt(this.dataset.index);
+       if (confirm('确定删除此数据集？')) {
+         currentDatasets.splice(idx, 1);
+         renderDatasetList(currentDatasets);
+         syncTaskInfoToEditor();
+       }
+     });
+   });
+   document.getElementById('addDatasetBtn').style.display = 'inline-block';
+ }
+
+ function openDatasetEditModal(index) {
+   const dataset = currentDatasets[index];
+   if (!dataset) return;
+   const name = prompt('数据集名称:', dataset.name || '');
+   if (name === null) return;
+   const path = prompt('存储路径:', dataset.path || '');
+   if (path === null) return;
+   const desc = prompt('数据集描述:', dataset.description || '');
+   if (desc === null) return;
+   currentDatasets[index] = { ...dataset, name: name, path: path, description: desc };
+   renderDatasetList(currentDatasets);
+   syncTaskInfoToEditor();
+ }
+
+ function syncTaskInfoToEditor() {
+   currentTaskInfo.task = document.getElementById('taskDescEditor').value.trim();
+   currentTaskInfo.data = currentDatasets;
+   document.getElementById('taskInfoEditor').value = JSON.stringify(currentTaskInfo, null, 2);
+ }
+
+ function renderChecklistWeights(checklist) {
+   const container = document.getElementById('checklistItems');
+   if (!checklist.length) {
+     container.innerHTML = '<div style="font-size: 12px; color: var(--text-tertiary); padding: 8px;">暂无评分项</div>';
+     document.getElementById('weightTotalDisplay').textContent = '';
+     document.getElementById('addChecklistBtn').style.display = 'inline-block';
+     return;
+   }
+
+   container.innerHTML = checklist.map(function(item, i) {
+     var pct = Math.round((item.weight || 0) * 100);
+     var srcLine = item._source ? '<div style="font-size: 10px; color: var(--accent); font-style: italic;">' + escapeHtml(item._source.slice(0, 100)) + '</div>' : '';
+     var truncContent = escapeHtml((item.content || '').substring(0, 100));
+     return '<div class="checklist-weight-item" data-index="' + i + '" style="background: var(--bg-surface); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 6px; border: 1px solid var(--border-light);">' +
+       '<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">' +
+       '<div style="font-size: 12px; color: var(--text-primary); flex: 1; margin-right: 8px; line-height: 1.5;">' +
+       '<a href="javascript:void(0)" class="checklist-edit-content" data-index="' + i + '" style="color: var(--text-primary); text-decoration: none;">' +
+       (i+1) + '. ' + truncContent + '</a></div>' +
+       '<div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">' +
+       '<input type="number" class="weight-input" data-index="' + i + '" value="' + pct + '" min="0" max="100" step="1" style="width: 50px; padding: 2px 4px; border: 1.5px solid var(--border-light); border-radius: 4px; font-size: 11px; text-align: center;">' +
+       '<span style="font-size: 10px; color: var(--text-tertiary);">%</span>' +
+       '<button class="btn checklist-delete-btn" data-index="' + i + '" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; background: var(--danger); min-width: 0; line-height: 1;">✕</button></div></div>' + srcLine + '</div>';
+   }).join('');
+
+   container.querySelectorAll('.weight-input').forEach(function(inp) {
+     inp.addEventListener('input', updateWeightTotal);
+     inp.addEventListener('change', updateWeightTotal);
+   });
+
+   container.querySelectorAll('.checklist-edit-content').forEach(function(el) {
+     el.addEventListener('click', function() {
+       var idx = parseInt(this.dataset.index);
+       var oldContent = currentChecklist[idx] ? currentChecklist[idx].content : '';
+       var newContent = prompt('编辑评分项内容（第' + (idx+1) + '项）:', oldContent);
+       if (newContent !== null && newContent.trim()) {
+         currentChecklist[idx].content = newContent.trim();
+         renderChecklistWeights(currentChecklist);
+         document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
+       }
+     });
+   });
+
+   container.querySelectorAll('.checklist-delete-btn').forEach(function(btn) {
+     btn.addEventListener('click', function() {
+       var idx = parseInt(this.dataset.index);
+       if (confirm('确定删除第 ' + (idx+1) + ' 项评分项？')) {
+         currentChecklist.splice(idx, 1);
+         renderChecklistWeights(currentChecklist);
+         document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
+       }
+     });
+   });
+
+   document.getElementById('addChecklistBtn').style.display = 'inline-block';
+   updateWeightTotal();
+ }
+
+ function updateWeightTotal() {
+   var inputs = document.querySelectorAll('.weight-input');
+   var total = 0;
+   inputs.forEach(function(inp) { total += parseFloat(inp.value) || 0; });
+   var display = document.getElementById('weightTotalDisplay');
+   var isValid = Math.abs(total - 100) < 0.01;
+   display.innerHTML = '权重总和: <strong style="color: ' + (isValid ? 'var(--success)' : 'var(--danger)') + ';">' + total.toFixed(1) + '%</strong> ' + (isValid ? '✅ 合法' : '❌ 须等于 100%');
+   return isValid;
+ }
+
+ function updateTaskReviewLockUI() {
+   var lockBtn = document.getElementById('toggleTaskReviewLockBtn');
+   var saveBtn = document.getElementById('saveTaskReviewBtn');
+   var unlockBtn = document.getElementById('unlockTaskReviewBtn');
+   var status = document.getElementById('taskReviewStatus');
+
+   if (isTaskReviewLocked) {
+     lockBtn.textContent = ' 已锁定';
+     lockBtn.style.background = 'var(--success)';
+     saveBtn.style.display = 'none';
+     unlockBtn.style.display = 'inline-block';
+     status.textContent = ' 配置已锁定，可安全启动流水线';
+   } else {
+     lockBtn.textContent = ' 锁定配置';
+     lockBtn.style.background = 'var(--accent)';
+     saveBtn.style.display = 'inline-block';
+     unlockBtn.style.display = 'none';
+     status.textContent = ' 编辑中，请确认后锁定';
+   }
+ }
+
+ // 保存修改按钮
+ document.getElementById('saveTaskReviewBtn').addEventListener('click', function() {
+   if (!updateWeightTotal()) {
+     alert('权重总和必须等于 100%，请调整后再保存。');
+     return;
+   }
+   syncTaskInfoToEditor();
+   var inputs = document.querySelectorAll('.weight-input');
+   inputs.forEach(function(inp) {
+     var idx = parseInt(inp.dataset.index);
+     if (currentChecklist[idx]) {
+       currentChecklist[idx].weight = (parseFloat(inp.value) || 0) / 100;
+     }
+   });
+   document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
+   document.getElementById('taskReviewStatus').textContent = ' 已保存';
+ });
+
+ // 锁定/解锁切换按钮
+ document.getElementById('toggleTaskReviewLockBtn').addEventListener('click', function() {
+   if (!isTaskReviewLocked) {
+     if (!updateWeightTotal()) {
+       alert('权重总和必须等于 100%，请调整后再锁定。');
+       return;
+     }
+     document.getElementById('saveTaskReviewBtn').click();
+   }
+   isTaskReviewLocked = !isTaskReviewLocked;
+   updateTaskReviewLockUI();
+ });
+
+ // 解锁按钮
+ document.getElementById('unlockTaskReviewBtn').addEventListener('click', function() {
+   isTaskReviewLocked = false;
+   updateTaskReviewLockUI();
+ });
+
+ // 添加数据集按钮
+ document.getElementById('addDatasetBtn').addEventListener('click', function() {
+   var name = prompt('数据集名称:');
+   if (!name) return;
+   var path = prompt('存储路径 (留空使用 data/{name}):') || ('data/' + name);
+   var desc = prompt('数据集描述:') || '';
+   currentDatasets.push({ name: name, path: path, description: desc, is_custom: true });
+   renderDatasetList(currentDatasets);
+   syncTaskInfoToEditor();
+ });
+
+ // 添加评分项按钮
+ document.getElementById('addChecklistBtn').addEventListener('click', function() {
+   var c = prompt('请输入新的评分项内容:');
+   if (!c || !c.trim()) return;
+   var w = parseFloat(prompt('请输入权重（百分比，例如 10 表示 10%）:', '10')) || 0;
+   currentChecklist.push({ content: c.trim(), weight: w / 100 });
+   renderChecklistWeights(currentChecklist);
+   document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
  });
 
  // 添加自定义数据集
