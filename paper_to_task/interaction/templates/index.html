@@ -3216,31 +3216,10 @@ function renderSimpleMarkdown(md) {
 
 
 
- function openDatasetEditModal(index) {
-
-   const dataset = currentDatasets[index];
-
-   if (!dataset) return;
-
-   const name = prompt('数据集名称:', dataset.name || '');
-
-   if (name === null) return;
-
-   const path = prompt('存储路径:', dataset.path || '');
-
-   if (path === null) return;
-
-   const desc = prompt('数据集描述:', dataset.description || '');
-
-   if (desc === null) return;
-
-   currentDatasets[index] = { ...dataset, name: name, path: path, description: desc };
-
-   renderDatasetList(currentDatasets);
-
-   syncTaskInfoToEditor();
-
- }
+	 function openDatasetEditModal(index) {
+	   // 直接调用editDataset函数，使用模态框
+	   editDataset(index);
+	 }
 
 
 
@@ -3543,46 +3522,6 @@ function renderSimpleMarkdown(md) {
 
  return;
 
-	 // 上传数据集按钮
-	 document.getElementById('uploadDatasetBtn').addEventListener('click', function() {
-	   document.getElementById('datasetFileInput').click();
-	 });
-
-	 // 数据集文件选择处理
-	 document.getElementById('datasetFileInput').addEventListener('change', function(e) {
-	   const files = e.target.files;
-	   if (!files || files.length === 0) return;
-
-	   for (let i = 0; i < files.length; i++) {
-	     const file = files[i];
-	     const name = file.name;
-	     const path = 'data/' + name;
-	     const desc = `上传的数据集文件: ${name} (${(file.size / 1024).toFixed(2)} KB)`;
-
-	     currentDatasets.push({
-	       name: name,
-	       path: path,
-	       description: desc,
-	       is_custom: true,
-	       is_uploaded: true,
-	       file_size: file.size
-	     });
-	   }
-
-	   renderDatasetList(currentDatasets);
-	   syncTaskInfoToEditor();
-
-	   // 更新文件预览
-	   if (storedResult && storedResult.task_info) {
-	     storedResult.task_info.data = currentDatasets;
-	     displayFileStructure(storedResult);
-	   }
-
-	   // 清空文件选择
-	   document.getElementById('datasetFileInput').value = '';
-	 });
-
- }
 
 
 
@@ -3706,6 +3645,46 @@ function renderSimpleMarkdown(md) {
 
  });
 
+	 // 上传数据集按钮
+	 document.getElementById('uploadDatasetBtn').addEventListener('click', function() {
+	   document.getElementById('datasetFileInput').click();
+	 });
+
+	 // 数据集文件选择处理
+	 document.getElementById('datasetFileInput').addEventListener('change', function(e) {
+	   const files = e.target.files;
+	   if (!files || files.length === 0) return;
+
+	   for (let i = 0; i < files.length; i++) {
+	     const file = files[i];
+	     const name = file.name;
+	     const path = 'data/' + name;
+	     const desc = `上传的数据集文件: ${name} (${(file.size / 1024).toFixed(2)} KB)`;
+
+	     currentDatasets.push({
+	       name: name,
+	       path: path,
+	       description: desc,
+	       is_custom: true,
+	       is_uploaded: true,
+	       file_size: file.size
+	     });
+	   }
+
+	   renderDatasetList(currentDatasets);
+	   syncTaskInfoToEditor();
+
+	   // 更新文件预览
+	   if (storedResult && storedResult.task_info) {
+	     storedResult.task_info.data = currentDatasets;
+	     displayFileStructure(storedResult);
+	   }
+
+	   // 清空文件选择
+	   document.getElementById('datasetFileInput').value = '';
+	 });
+
+
 
 
  // 编辑数据集
@@ -3804,10 +3783,15 @@ function renderSimpleMarkdown(md) {
 
 
 
- // 刷新显示
+	 // 刷新显示
+	 renderDatasetList(currentDatasets);
+	 syncTaskInfoToEditor();
 
- displayDataUploadSection({task_info: currentTaskInfo || {}});
-
+	 // 更新文件预览
+	 if (storedResult && storedResult.task_info) {
+	   storedResult.task_info.data = currentDatasets;
+	   displayFileStructure(storedResult);
+	 }
 
 
  // 关闭模态框
