@@ -3062,91 +3062,6 @@ function renderSimpleMarkdown(md) {
 
 
 
- // 保存checklist修改
-
- document.getElementById('saveChecklistBtn').addEventListener('click', async () => {
-
- const editor = document.getElementById('checklistEditor');
-
- const jsonContent = editor.value.trim();
-
-
-
- if (!jsonContent) {
-
- alert('请输入内容');
-
- return;
-
- }
-
-
-
- try {
-
- const parsed = JSON.parse(jsonContent);
-
- currentChecklist = parsed;
-
-
-
- // 更新显示
-
- const checklistItems = document.getElementById('checklistItems');
-
- checklistItems.innerHTML = '';
-
- if (parsed && parsed.length > 0) {
-
- parsed.forEach((item, index) => {
-
- const div = document.createElement('div');
-
- div.className = 'checklist-item';
-
- div.innerHTML = `
-
- <div class="checklist-content">${index + 1}. ${item.content?.substring(0, 100) || ''}...</div>
-
- <div class="checklist-meta">
-
- <span>权重: ${(item.weight * 100).toFixed(0)}%</span>
-
- 
-
- </div>
-
- `;
-
- checklistItems.appendChild(div);
-
- });
-
- } else {
-
- checklistItems.innerHTML = '<div style="text-align: center; color: #999;">暂无评分项</div>';
-
- }
-
-
-
- // 更新文件预览
-
- displayFileStructure({task_info: currentTaskInfo || {}, checklist: parsed});
-
- displayPaperSources({task_info: currentTaskInfo || {}, checklist: parsed, paper_sources: storedResult?.paper_sources || {}, research_info: currentResearchInfo || {}});
-
- alert(' checklist.json 已更新！');
-
-
-
- } catch (e) {
-
- alert(' JSON格式错误：' + e.message);
-
- }
-
- });
 
 
 
@@ -3165,8 +3080,6 @@ function renderSimpleMarkdown(md) {
 
 
  function renderTaskReview(result) {
-  let isTaskReviewLocked = false;
-
    const taskInfo = result.task_info || {};
 
    const checklist = result.checklist || [];
