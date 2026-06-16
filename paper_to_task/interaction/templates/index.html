@@ -952,15 +952,11 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 
 	 <div style="display: flex; gap: 8px;">
 
-	 <button class="btn" id="uploadDatasetBtn" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0; background: var(--success); display: none;">📁 上传数据集</button>
-
 	 <button class="btn" id="addDatasetBtn" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0; background: var(--accent); display: none;">+ 添加数据集</button>
 
 	 </div>
 
 	 </div>
-
-	 <input type="file" id="datasetFileInput" accept=".csv,.json,.txt,.zip,.tar.gz" style="display: none;" multiple>
 
  <div id="datasetList"></div>
 
@@ -1611,6 +1607,16 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 let currentRawMarkdown = "";
 
 let currentPolishedMarkdown = null;
+
+let currentTaskInfo = null;
+let currentChecklist = null;
+let currentDatasets = [];
+let currentPaperSources = {};
+let currentResearchInfo = {};
+let storedResult = null;  // stored result for source references
+let editingChecklistIndex = null;
+let pipelineUUID = null;
+let pipelinePollTimer = null;
 
 
 
@@ -3056,19 +3062,6 @@ function renderSimpleMarkdown(md) {
 
 
 
- // 存储当前编辑的内容
-
- let currentTaskInfo = null;
-
- let currentChecklist = null;
-
- let currentDatasets = [];
-
- let currentPaperSources = {};
-
- let currentResearchInfo = {};
-
- let storedResult = null;  // stored result for source references
 
 
 
@@ -3151,35 +3144,27 @@ function renderSimpleMarkdown(md) {
      return;
 
    }
-
    container.innerHTML = datasets.map((d, i) => {
 
      const srcHtml = d._source
-
        ? '<div style="font-size: 10px; color: var(--accent); margin-top: 4px; font-style: italic;">' + d._source.slice(0, 120) + '</div>'
-
        : '';
 
+     const uploadStatus = d.uploadStatus ? '<div style="font-size: 10px; color: var(--success);">✅ ' + d.uploadStatus + '</div>' : '';
+
      return '<div class="dataset-item" data-index="' + i + '" style="background: var(--bg-surface); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 6px; border: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: flex-start;">' +
-
        '<div style="flex: 1;">' +
-
        '<div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">' + escapeHtml(d.name || '') + '</div>' +
-
        '<div style="font-size: 11px; color: var(--text-secondary);">路径: ' + escapeHtml(d.path || '') + '</div>' +
-
        '<div style="font-size: 11px; color: var(--text-secondary);">' + escapeHtml(d.description || '') + '</div>' +
-
-       srcHtml + '</div>' +
-
-       '<div style="display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px;">' +
-
+       srcHtml + uploadStatus + '</div>' +
+       '<div style="display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px; align-items: flex-start;">' +
+       '<div style="display: flex; flex-direction: column; gap: 2px;">' +
+       '<button class="btn upload-file-btn" data-index="' + i + '" style="width: auto; padding: 2px 8px; font-size: 10px; margin: 0; background: var(--success);">📁 上传文件</button>' +
        '<button class="btn edit-dataset-btn" data-index="' + i + '" style="width: auto; padding: 2px 8px; font-size: 10px; margin: 0; background: var(--text-secondary);">编辑</button>' +
-
        '<button class="btn delete-dataset-btn" data-index="' + i + '" style="width: auto; padding: 2px 8px; font-size: 10px; margin: 0; background: var(--danger);">删除</button>' +
-
-       '</div></div>';
-
+       '</div></div>' +
+       '<input type="file" class="dataset-file-input" data-index="' + i + '" accept=".csv,.json,.txt,.zip,.tar.gz" style="display: none;">';
    }).join('');
 
 
@@ -3195,7 +3180,6 @@ function renderSimpleMarkdown(md) {
      });
 
    });
-
    container.querySelectorAll('.delete-dataset-btn').forEach(btn => {
 
      btn.addEventListener('click', function() {
@@ -3216,8 +3200,35 @@ function renderSimpleMarkdown(md) {
 
    });
 
+   // 上传文件按钮事件
+   container.querySelectorAll('.upload-file-btn').forEach(btn => {
+     btn.addEventListener('click', function() {
+       const idx = parseInt(this.dataset.index);
+       const fileInput = document.querySelector(`.dataset-file-input[data-index="${idx}"]`);
+       if (fileInput) {
+         fileInput.value = '';
+         fileInput.click();
+       }
+     });
+   });
+
+   // 文件选择处理
+   container.querySelectorAll('.dataset-file-input').forEach(input => {
+     input.addEventListener('change', function() {
+       const file = this.files[0];
+       if (!file) return;
+       const idx = parseInt(this.dataset.index);
+       const dataset = currentDatasets[idx];
+       if (!dataset) return;
+
+       dataset.uploadStatus = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+       dataset.uploadedFile = file;
+       renderDatasetList(currentDatasets);
+       syncTaskInfoToEditor();
+     });
+   });
+
    document.getElementById('addDatasetBtn').style.display = 'inline-block';
-	   document.getElementById('uploadDatasetBtn').style.display = 'inline-block';
 
  }
 
@@ -3575,46 +3586,6 @@ function renderSimpleMarkdown(md) {
 	 alert(`自定义数据集 "${name}" 已添加！`);
  });
 
-	 // 上传数据集按钮
-	 document.getElementById('uploadDatasetBtn').addEventListener('click', function() {
-	   document.getElementById('datasetFileInput').click();
-	 });
-
-	 // 数据集文件选择处理
-	 document.getElementById('datasetFileInput').addEventListener('change', function(e) {
-	   const files = e.target.files;
-	   if (!files || files.length === 0) return;
-
-	   for (let i = 0; i < files.length; i++) {
-	     const file = files[i];
-	     const name = file.name;
-	     const path = 'data/' + name;
-	     const desc = `上传的数据集文件: ${name} (${(file.size / 1024).toFixed(2)} KB)`;
-
-	     currentDatasets.push({
-	       name: name,
-	       path: path,
-	       description: desc,
-	       is_custom: true,
-	       is_uploaded: true,
-	       file_size: file.size
-	     });
-	   }
-
-	   renderDatasetList(currentDatasets);
-	   syncTaskInfoToEditor();
-
-	   // 更新文件预览
-	   if (storedResult && storedResult.task_info) {
-	     storedResult.task_info.data = currentDatasets;
-	     displayFileStructure(storedResult);
-	   }
-
-	   // 清空文件选择
-	   document.getElementById('datasetFileInput').value = '';
-	 });
-
-
 
 
  // 编辑数据集
@@ -3725,9 +3696,6 @@ function renderSimpleMarkdown(md) {
 
  // ============================================================================
 
- let pipelineUUID = null;
-
- let pipelinePollTimer = null;
 
 
 
@@ -4664,6 +4632,42 @@ function renderSimpleMarkdown(md) {
 	// 全局模态框函数（需要在HTML onclick中调用）
 	// ============================================================================
 
+	// 保存数据集编辑
+	function saveDatasetEdit() {
+		const modal = document.getElementById('editModal');
+		const index = modal.dataset.editingIndex;
+
+		const name = document.getElementById('editDatasetName').value.trim();
+		const path = document.getElementById('editDatasetPath').value.trim();
+		const description = document.getElementById('editDatasetDesc').value.trim();
+
+		if (!name || !path) {
+			alert('请填写数据集名称和路径');
+			return;
+		}
+
+		currentDatasets[index] = {
+			...currentDatasets[index],
+			name: name,
+			path: path,
+			description: description
+		};
+
+		if (currentTaskInfo) {
+			currentTaskInfo.data = currentDatasets;
+		}
+
+		renderDatasetList(currentDatasets);
+		syncTaskInfoToEditor();
+
+		if (storedResult && storedResult.task_info) {
+			storedResult.task_info.data = currentDatasets;
+			displayFileStructure(storedResult);
+		}
+
+		modal.classList.remove('active');
+		alert(`数据集 "${name}" 已更新！`);
+	}
 	// 关闭编辑模态框
 	function closeEditModal() {
 		document.getElementById('editModal').classList.remove('active');
@@ -4715,7 +4719,6 @@ function renderSimpleMarkdown(md) {
 	}
 
 	// 评分项模态框函数
-	let editingChecklistIndex = null;
 
 	function openChecklistModal(index = null) {
 		editingChecklistIndex = index;

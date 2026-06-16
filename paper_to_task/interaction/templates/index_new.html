@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper-to-Task + 流水线智能控制</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 1200px;
+            min-height: 700px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 32px;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .header .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 0 32px;
+        }
+
+        .tab {
+            padding: 16px 24px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            color: #495057;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: white;
+        }
+
+        .content {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* PDF上传样式 */
+        .upload-area {
+            border: 3px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #e8edff;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .upload-text {
+            font-size: 18px;
+            font-weight: 500;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #5568d4;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        /* 任务审查样式 */
+        .task-review {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #e9ecef;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .task-description {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #dee2e6;
+            margin-bottom: 16px;
+        }
+
+        .dataset-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .dataset-item {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dataset-info {
+            flex: 1;
+        }
+
+        .dataset-name {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 4px;
+        }
+
+        .dataset-path {
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .dataset-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .checklist-item {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #dee2e6;
+            margin-bottom: 12px;
+        }
+
+        .checklist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .checklist-content {
+            font-size: 16px;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+
+        .weight-slider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .weight-slider input {
+            flex: 1;
+        }
+
+        .weight-value {
+            font-weight: 600;
+            color: #667eea;
+            min-width: 60px;
+        }
+
+        /* 加载状态 */
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 结果展示 */
+        .result-summary {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .result-summary h3 {
+            color: #155724;
+            margin-bottom: 8px;
+        }
+
+        .file-preview {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #dee2e6;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>📄 Paper-to-Task + 流水线智能控制</h1>
+                <div class="subtitle">科研流程智能助手 - 论文解析到实验执行全流程</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="upload">📤 PDF上传</div>
+            <div class="tab" data-tab="review">📋 任务审查</div>
+            <div class="tab" data-tab="pipeline">▶ 流水线控制</div>
+        </div>
+
+        <div class="content">
+            <!-- PDF上传标签页 -->
+            <div id="uploadTab" class="tab-content active">
+                <div id="uploadSection">
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">📄</div>
+                        <div class="upload-text">点击或拖拽上传PDF文件</div>
+                        <div class="upload-hint">支持最大16MB的PDF文件</div>
+                    </div>
+                    <input type="file" id="fileInput" accept=".pdf">
+
+                    <div style="margin-top: 24px; text-align: center;">
+                        <button class="btn" id="processBtn" disabled>开始处理</button>
+                    </div>
+
+                    <div id="processingStatus" style="display: none; margin-top: 24px;">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <div id="statusText">正在处理PDF...</div>
+                        </div>
+                    </div>
+
+                    <div id="resultSection" style="display: none;">
+                        <div class="result-summary">
+                            <h3>✅ PDF处理完成！</h3>
+                            <p>已成功生成任务定义和评分清单</p>
+                        </div>
+
+                        <div style="text-align: center; margin-bottom: 16px;">
+                            <button class="btn" onclick="switchToReviewTab()">查看任务详情 →</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 任务审查标签页 -->
+            <div id="reviewTab" class="tab-content">
+                <div id="reviewSection">
+                    <div id="noDataMessage" style="text-align: center; padding: 60px; color: #6c757d;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
+                        <div>请先上传PDF文件生成任务信息</div>
+                    </div>
+
+                    <div id="taskReviewContent" style="display: none;">
+                        <div class="task-review">
+                            <!-- 任务描述 -->
+                            <div class="section">
+                                <div class="section-title">📝 研究任务描述</div>
+                                <div class="task-description" id="taskDescription"></div>
+                                <button class="btn btn-sm btn-secondary" onclick="editTaskDescription()">编辑描述</button>
+                            </div>
+
+                            <!-- 数据集列表 -->
+                            <div class="section">
+                                <div class="section-title">📊 数据集列表 <button class="btn btn-sm" onclick="addDataset()">+ 添加数据集</button></div>
+                                <div class="dataset-list" id="datasetList"></div>
+                            </div>
+
+                            <!-- 评分项清单 -->
+                            <div class="section">
+                                <div class="section-title">✅ 评分项清单 <button class="btn btn-sm" onclick="addChecklistItem()">+ 添加评分项</button></div>
+                                <div id="checklistContainer"></div>
+                            </div>
+
+                            <!-- 确认按钮 -->
+                            <div style="text-align: center; margin-top: 32px;">
+                                <button class="btn" onclick="confirmTaskReview()" style="font-size: 18px; padding: 16px 32px;">确认并锁定配置</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 流水线控制标签页 -->
+            <div id="pipelineTab" class="tab-content">
+                <div style="text-align: center; padding: 60px; color: #6c757d;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">▶</div>
+                    <div>流水线控制功能开发中...</div>
+                    <div style="font-size: 14px; margin-top: 8px;">将包含想法审批、代码审查、结果评估等功能</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let currentResult = null;
+        let currentDatasets = [];
+        let currentChecklist = [];
+
+        // DOM加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing...');
+            initializeTabs();
+            initializeUpload();
+            console.log('Initialization complete');
+        });
+
+        // 标签切换
+        function initializeTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    switchTab(tabName);
+                });
+            });
+        }
+
+        function switchTab(tabName) {
+            // 更新标签样式
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            // 更新内容显示
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`${tabName}Tab`).classList.add('active');
+        }
+
+        function switchToReviewTab() {
+            switchTab('review');
+        }
+
+        // PDF上传功能
+        function initializeUpload() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const processBtn = document.getElementById('processBtn');
+
+            // 点击上传区域
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            // 拖拽上传
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    handleFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            // 文件选择
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length) {
+                    handleFile(e.target.files[0]);
+                }
+            });
+
+            // 处理按钮
+            processBtn.addEventListener('click', processPDF);
+        }
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.pdf')) {
+                alert('请上传PDF文件');
+                return;
+            }
+
+            const uploadText = document.querySelector('.upload-text');
+            uploadText.textContent = `已选择: ${file.name}`;
+
+            document.getElementById('processBtn').disabled = false;
+            window.currentFile = file;
+        }
+
+        async function processPDF() {
+            const file = window.currentFile;
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // 显示处理状态
+            document.getElementById('uploadSection').querySelector('.upload-area').style.display = 'none';
+            document.getElementById('processingStatus').style.display = 'block';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    currentResult = data;
+                    displayResult(data);
+                } else {
+                    alert('处理失败: ' + data.error);
+                    resetUpload();
+                }
+            } catch (error) {
+                alert('处理失败: ' + error);
+                resetUpload();
+            }
+        }
+
+        function displayResult(result) {
+            document.getElementById('processingStatus').style.display = 'none';
+            document.getElementById('resultSection').style.display = 'block';
+
+            // 准备任务审查数据
+            currentDatasets = result.task_info?.data || [];
+            currentChecklist = result.checklist || [];
+        }
+
+        function resetUpload() {
+            document.getElementById('processingStatus').style.display = 'none';
+            document.getElementById('uploadSection').querySelector('.upload-area').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('processBtn').disabled = true;
+        }
+
+        // 任务审查功能
+        function renderTaskReview() {
+            if (!currentResult) return;
+
+            document.getElementById('noDataMessage').style.display = 'none';
+            document.getElementById('taskReviewContent').style.display = 'block';
+
+            // 显示任务描述
+            document.getElementById('taskDescription').textContent =
+                currentResult.task_info?.task || '暂无描述';
+
+            // 显示数据集列表
+            renderDatasetList();
+
+            // 显示评分项
+            renderChecklist();
+        }
+
+        function renderDatasetList() {
+            const container = document.getElementById('datasetList');
+            if (!currentDatasets.length) {
+                container.innerHTML = '<div style="text-align: center; color: #6c757d; padding: 20px;">暂无数据集</div>';
+                return;
+            }
+
+            container.innerHTML = currentDatasets.map((dataset, index) => `
+                <div class="dataset-item">
+                    <div class="dataset-info">
+                        <div class="dataset-name">${dataset.name}</div>
+                        <div class="dataset-path">路径: ${dataset.path}</div>
+                    </div>
+                    <div class="dataset-actions">
+                        <button class="btn btn-sm" onclick="editDataset(${index})">编辑</button>
+                        <button class="btn btn-sm btn-secondary" onclick="deleteDataset(${index})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderChecklist() {
+            const container = document.getElementById('checklistContainer');
+            if (!currentChecklist.length) {
+                container.innerHTML = '<div style="text-align: center; color: #6c757d; padding: 20px;">暂无评分项</div>';
+                return;
+            }
+
+            container.innerHTML = currentChecklist.map((item, index) => `
+                <div class="checklist-item">
+                    <div class="checklist-header">
+                        <div class="checklist-content">${index + 1}. ${item.content}</div>
+                        <button class="btn btn-sm btn-secondary" onclick="deleteChecklistItem(${index})">删除</button>
+                    </div>
+                    <div class="weight-slider">
+                        <input type="range" min="0" max="100" value="${item.weight * 100}"
+                               onchange="updateWeight(${index}, this.value)">
+                        <span class="weight-value">${Math.round(item.weight * 100)}%</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addDataset() {
+            const name = prompt('数据集名称:');
+            if (!name) return;
+
+            const path = prompt('存储路径 (留空使用 data/{name}):') || `data/${name}`;
+            const desc = prompt('数据集描述:') || '';
+
+            currentDatasets.push({
+                name,
+                path,
+                description: desc,
+                is_custom: true
+            });
+
+            renderDatasetList();
+        }
+
+        function editDataset(index) {
+            const dataset = currentDatasets[index];
+            const name = prompt('数据集名称:', dataset.name);
+            if (name === null) return;
+
+            const path = prompt('存储路径:', dataset.path);
+            if (path === null) return;
+
+            const desc = prompt('数据集描述:', dataset.description);
+            if (desc === null) return;
+
+            currentDatasets[index] = { ...dataset, name, path, description: desc };
+            renderDatasetList();
+        }
+
+        function deleteDataset(index) {
+            if (confirm('确定删除此数据集？')) {
+                currentDatasets.splice(index, 1);
+                renderDatasetList();
+            }
+        }
+
+        function addChecklistItem() {
+            const content = prompt('评分项内容:');
+            if (!content) return;
+
+            const weight = parseFloat(prompt('权重 (%):', '20')) || 20;
+
+            currentChecklist.push({
+                content,
+                weight: weight / 100
+            });
+
+            renderChecklist();
+        }
+
+        function deleteChecklistItem(index) {
+            if (confirm('确定删除此评分项？')) {
+                currentChecklist.splice(index, 1);
+                renderChecklist();
+            }
+        }
+
+        function updateWeight(index, value) {
+            currentChecklist[index].weight = value / 100;
+            document.querySelector(`.checklist-item:nth-child(${index + 1}) .weight-value`).textContent = `${value}%`;
+        }
+
+        function editTaskDescription() {
+            if (!currentResult) return;
+
+            const newDescription = prompt('编辑任务描述:', currentResult.task_info?.task || '');
+            if (newDescription !== null) {
+                currentResult.task_info.task = newDescription;
+                document.getElementById('taskDescription').textContent = newDescription;
+            }
+        }
+
+        function confirmTaskReview() {
+            alert('配置已确认！功能开发中，后续将支持保存到文件和启动流水线。');
+        }
+
+        // 监听标签切换，当切换到任务审查时渲染数据
+        document.addEventListener('DOMContentLoaded', function() {
+            const reviewTab = document.querySelector('[data-tab="review"]');
+            reviewTab.addEventListener('click', () => {
+                if (currentResult) {
+                    setTimeout(renderTaskReview, 100);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
