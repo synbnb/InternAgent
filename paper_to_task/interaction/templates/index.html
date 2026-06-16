@@ -1614,6 +1614,10 @@ let currentPolishedMarkdown = null;
 
 
 
+
+	// 等待DOM加载完成
+	document.addEventListener('DOMContentLoaded', function() {
+
  // 文件上传处理
 
  const uploadArea = document.getElementById('uploadArea');
@@ -4914,6 +4918,9 @@ function renderSimpleMarkdown(md) {
 	 }
 
 	 });
+
+
+	}); // DOMContentLoaded end
 
  </script>
 
