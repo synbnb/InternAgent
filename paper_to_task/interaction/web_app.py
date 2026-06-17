@@ -44,7 +44,7 @@ config = {
         'cache_enabled': True
     },
     'project': {
-        'sci_tasks_base': 'sci_tasks/tasks'
+        'sci_tasks_base': str((Path(__file__).parent.parent.parent / 'sci_tasks' / 'tasks').resolve())
     },
     'quality': {
         'min_score': 0.7,
