@@ -1041,11 +1041,12 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
  </div>
 
 
-
+ </div>
 
 
 
  <!-- 来源引用标签页 -->
+
 
  <div class="tab-content" id="sources">
 
@@ -1704,244 +1705,103 @@ let pipelinePollTimer = null;
 
  // 显示结果
 
- function displayResult(result) {
-
- document.getElementById('resultContainer').style.display = 'block';
-
- document.getElementById('uploadQualityCard').style.display = '';
-
-
-
- // 自动切换到概览标签
-
- document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-
- document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
- const ovBtn = document.querySelector('[data-tab="overview"]');
-
- if (ovBtn) { ovBtn.classList.add('active'); }
-
- const ovTab = document.getElementById('overview');
-
- if (ovTab) { ovTab.classList.add('active'); }
-
-
-
- // 质量评分（百分制）
-
- const score = result.quality.score;
-
- document.getElementById('scoreValue').textContent = typeof score === 'number' ? (score <= 1 ? (score * 100).toFixed(1) : score.toFixed(1)) : score;
-
-
-
- const gradeElement = document.getElementById('scoreGrade');
-
- gradeElement.textContent = result.quality.grade;
-
- gradeElement.className = 'score-grade grade-' + result.quality.grade.toLowerCase();
-
-
-
- // 维度评分
-
- const dimensionScores = document.getElementById('dimensionScores');
-
- dimensionScores.innerHTML = '';
-
- const dimensionNames = {
-
- 'completeness': '完整性',
-
- 'accuracy': '准确性',
-
- 'clarity': '清晰度',
-
- 'feasibility': '可行性'
-
- };
-
- for (const [key, value] of Object.entries(result.quality.dimension_scores)) {
-
- const item = document.createElement('div');
-
- item.className = 'dimension-item';
-
- item.innerHTML = `
-
- <span>${dimensionNames[key] || key}</span>
-
- <span>${value.toFixed(1)}/100</span>
-
- `;
-
- dimensionScores.appendChild(item);
-
- }
-
-
-
- // 任务信息
-
- // 生成数据文件列表（含来源）
-
- const dataItems = (result.task_info.data || []).map((d, i) => {
-
- const sectionLabel = d._source ? (d._source.match(/^【([^】]+)】/) ? d._source.match(/^【([^】]+)】/)[1] : '') : '';
-
- const sourceQuote = d._source ? d._source.replace(/^【[^】]+】/, '').trim() : '';
-
- const sourceText = d._source ? `<div class="source-citation">` + (sectionLabel ? `<span class="source-section-label">${sectionLabel}</span> ` : '') + sourceQuote + `</div>` : '';
-
- return '<div style="margin-top: 8px; padding: 8px 12px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-light);">' +
-
- '<div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">[' + (i+1) + '] ' + d.name + '</div>' +
-
- '<div style="font-size: 12px; color: var(--text-secondary);">路径: ' + (d.path || '') + '</div>' +
-
- '<div style="font-size: 12px; color: var(--text-secondary);">' + (d.description || '') + '</div>' +
-
- sourceText + '</div>';
-
- }).join('');
-
-
-
- // 任务描述来源
-
- const taskSourceHtml = result.task_info.task_source
-
- ? formatSourceCitation(result.task_info.task_source)
-
- : (result.task_info._source ? formatSourceCitation(result.task_info._source) : '');
-
-
-
- document.getElementById('taskInfo').innerHTML = `
-
- <div style="font-size: 14px; color: var(--text-primary);">
-
- <strong>任务:</strong> ${result.task_info.task || '无'}
-
- ${taskSourceHtml}
-
- </div>
-
- <div style="margin-top: 12px;">
-
- <strong style="font-size: 13px; color: var(--text-primary);">数据文件:</strong> ${result.task_info.data?.length || 0} 个
-
- ${dataItems}
-
- </div>
-
- `;
-
-
-
- // 使用结构化任务审查（异常保护）
-
- try { 
-
-   renderTaskReview(result); 
-
- } catch (e) {
-
-   console.error("renderTaskReview error:", e);
-
-   console.error("Stack:", e.stack);
-
-   // 后备机制：确保即使renderTaskReview失败，内容也能显示
-
-   const taskInfo = result.task_info || {};
-
-   const checklist = result.checklist || [];
-
-   currentTaskInfo = taskInfo;
-
-   currentChecklist = checklist;
-
-   currentDatasets = taskInfo.data || [];
-
-   // 显示数据集和添加按钮
-
-   renderDatasetList(currentDatasets);
-
-   // 显示评分项和添加按钮
-
-   renderChecklistWeights(checklist);
-
- }
-
-
-
- // 显示研究详情
-
- if (result.research_doc) {
-
- document.getElementById('researchDoc').innerHTML = `
-
- <div style="white-space: pre-wrap; line-height: 1.8;">${result.research_doc}</div>
-
- `;
-
- }
-
-
-
-// 显示文件结构预览（异常保护）
-
- try { displayFileStructure(result); } catch (e) { console.error('displayFileStructure error:', e); }
-
-
-
-
-
-
- // 初始化编辑器内容
-
- currentTaskInfo = result.task_info || {};
-
- currentChecklist = result.checklist || [];
-
- currentDatasets = result.task_info?.data || [];
-
- currentPaperSources = result.paper_sources || {};
-
- currentResearchInfo = result.research_info || {};
-
- currentRawMarkdown = result.raw_markdown || "";
-
-currentPolishedMarkdown = null;
-
-storedResult = result;  // store for access from save handlers
-
-
-
- // 填充编辑器
-
- document.getElementById('taskInfoEditor').value = JSON.stringify(currentTaskInfo, null, 2);
-
- document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
-
-
-
- // 显示论文来源引用（异常保护）
-
- try { displayPaperSources(result); } catch (e) { console.error('displayPaperSources error:', e); }
-
-
-
- // 自动填充论文原文标签页内容
-
- if (currentRawMarkdown) {
-
-     document.getElementById('paperRawInner').textContent = currentRawMarkdown;
-
- }
-
- }
+	// 显示结果
+	function displayResult(result) {
+		try {
+			document.getElementById('resultContainer').style.display = 'block';
+			document.getElementById('uploadQualityCard').style.display = '';
+
+			// 切换到概览标签
+			document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+			document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+			const ovBtn = document.querySelector('[data-tab="overview"]');
+			if (ovBtn) ovBtn.classList.add('active');
+			const ovTab = document.getElementById('overview');
+			if (ovTab) ovTab.classList.add('active');
+
+			// 质量评分
+			const score = result.quality.score;
+			document.getElementById('scoreValue').textContent = typeof score === 'number' ? (score <= 1 ? (score * 100).toFixed(1) : score.toFixed(1)) : score;
+			const gradeElement = document.getElementById('scoreGrade');
+			gradeElement.textContent = result.quality.grade;
+			gradeElement.className = 'score-grade grade-' + result.quality.grade.toLowerCase();
+
+			// 维度评分
+			const dimensionScores = document.getElementById('dimensionScores');
+			dimensionScores.innerHTML = '';
+			const dimensionNames = {
+				'completeness': '完整性', 'accuracy': '准确性',
+				'clarity': '清晰度', 'feasibility': '可行性'
+			};
+			for (const [key, value] of Object.entries(result.quality.dimension_scores)) {
+				const item = document.createElement('div');
+				item.className = 'dimension-item';
+				item.innerHTML = '<span>' + (dimensionNames[key] || key) + '</span><span>' + value.toFixed(1) + '/100</span>';
+				dimensionScores.appendChild(item);
+			}
+
+			// 任务信息
+			const dataItems = (result.task_info.data || []).map(function(d, i) {
+				const sectionLabel = d._source ? (d._source.match(/^【([^】]+)】/) ? d._source.match(/^【([^】]+)】/)[1] : '') : '';
+				const sourceQuote = d._source ? d._source.replace(/^【[^】]+】/, '').trim() : '';
+				const sourceText = d._source ? '<div class="source-citation">' + (sectionLabel ? '<span class="source-section-label">' + sectionLabel + '</span> ' : '') + sourceQuote + '</div>' : '';
+				return '<div style="margin-top:8px;padding:8px 12px;background:var(--bg-surface);border-radius:var(--radius-sm);border:1px solid var(--border-light);">' +
+					'<div style="font-size:13px;font-weight:500;color:var(--text-primary);">[' + (i+1) + '] ' + d.name + '</div>' +
+					'<div style="font-size:12px;color:var(--text-secondary);">路径: ' + (d.path || '') + '</div>' +
+					'<div style="font-size:12px;color:var(--text-secondary);">' + (d.description || '') + '</div>' + sourceText + '</div>';
+			}).join('');
+
+			const taskSourceHtml = result.task_info.task_source
+				? formatSourceCitation(result.task_info.task_source)
+				: (result.task_info._source ? formatSourceCitation(result.task_info._source) : '');
+
+			document.getElementById('taskInfo').innerHTML = '<div style="font-size:14px;color:var(--text-primary);">' +
+				'<strong>任务:</strong> ' + (result.task_info.task || '无') + taskSourceHtml + '</div>' +
+				'<div style="margin-top:12px;"><strong style="font-size:13px;color:var(--text-primary);">数据文件:</strong> ' +
+				(result.task_info.data ? result.task_info.data.length : 0) + ' 个' + dataItems + '</div>';
+
+			// 任务审查（异常保护）
+			try { renderTaskReview(result); } catch (e) { console.error('renderTaskReview:', e); }
+
+		} catch (e) {
+			console.error('displayResult (概览部分) error:', e);
+		}
+
+		// ====== 研究详情（独立异常保护）======
+		try {
+			if (result.research_doc) {
+				document.getElementById('researchDoc').innerHTML = '<div style="white-space:pre-wrap;line-height:1.8;">' + result.research_doc + '</div>';
+			}
+		} catch (e) { console.error('researchDoc error:', e); }
+
+		// ====== 文件结构预览（独立异常保护）======
+		try { displayFileStructure(result); } catch (e) { console.error('displayFileStructure:', e); }
+
+		// ====== 初始化全局状态（独立异常保护）======
+		try {
+			currentTaskInfo = result.task_info || {};
+			currentChecklist = result.checklist || [];
+			currentDatasets = (result.task_info && result.task_info.data) || [];
+			currentPaperSources = result.paper_sources || {};
+			currentResearchInfo = result.research_info || {};
+			currentRawMarkdown = result.raw_markdown || '';
+			currentPolishedMarkdown = null;
+			storedResult = result;
+
+			document.getElementById('taskInfoEditor').value = JSON.stringify(currentTaskInfo, null, 2);
+			document.getElementById('checklistEditor').value = JSON.stringify(currentChecklist, null, 2);
+		} catch (e) { console.error('init state error:', e); }
+
+		// ====== 来源引用（独立异常保护）======
+		try { displayPaperSources(result); } catch (e) { console.error('displayPaperSources:', e); }
+
+		// ====== 论文原文（独立异常保护）======
+		try {
+			if (currentRawMarkdown) {
+				document.getElementById('paperRawInner').textContent = currentRawMarkdown;
+			}
+		} catch (e) { console.error('paperRaw error:', e); }
+	}
 
 
 
