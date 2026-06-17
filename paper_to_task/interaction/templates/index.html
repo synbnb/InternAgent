@@ -1276,12 +1276,13 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 			 <div style="font-size: 16px; font-weight: 600; color: var(--text-primary);">📂 结果目录</div>
 		 </div>
 		 <div style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center;">
-			 <input type="text" class="feedback-input" id="fileBrowserPath" placeholder="输入路径或点击浏览..." style="min-height: auto; font-size: 13px; flex: 1; margin-bottom: 0;">
-			 <button class="btn" id="fileBrowserGoBtn" style="width: auto; padding: 6px 14px; font-size: 12px; margin: 0;"> 打开</button>
+			 <select class="feedback-input" id="fileBrowserSelect" style="min-height: auto; font-size: 13px; flex: 1; margin-bottom: 0;"><option value="">-- 请选择任务目录 --</option></select>
+			 <button class="btn" id="fileBrowserGoBtn" style="width: auto; padding: 6px 14px; font-size: 12px; margin: 0;"> 浏览</button>
+			 <button class="btn" id="fileBrowserRefreshBtn" style="width: auto; padding: 6px 14px; font-size: 12px; background: var(--text-secondary); margin: 0;"> 刷新列表</button>
 		 </div>
 		 <div id="fileBrowserContainer">
 			 <div style="text-align: center; color: var(--text-tertiary); padding: 20px;">
-				 输入路径后点击"打开"查看文件列表
+				 请选择任务目录后点击"浏览"
 			 </div>
 		 </div>
 		 <div id="fileEditorContainer" style="display: none; margin-top: 16px; border-top: 1px solid var(--border-light); padding-top: 16px;">
@@ -3989,7 +3990,6 @@ function renderSimpleMarkdown(md) {
 		 }
 		 });
 
-
 	 // ============================================================
 	 // 结果评估
 	 // ============================================================
@@ -4007,37 +4007,6 @@ function renderSimpleMarkdown(md) {
 				 headers: {'Content-Type': 'application/json'},
 				 body: JSON.stringify({task_path: taskPath})
 			 });
-			 // 聊天发送
-			 document.getElementById('ideaChatSendBtn').addEventListener('click', async function() {
-				 var input = document.getElementById('ideaChatInput');
-				 var msg = input.value.trim();
-				 if (!msg) return;
-				 var chatMsg = document.getElementById('ideaChatMessages');
-				 chatMsg.innerHTML += '<div style="text-align:right;margin:4px 0;"><span style="background:var(--accent);color:white;padding:6px 12px;border-radius:12px 12px 2px 12px;display:inline-block;font-size:13px;">' + escapeHtml(msg) + '</span></div>';
-				 input.value = '';
-				 chatMsg.innerHTML += '<div style="text-align:center;padding:8px;"><span style="font-size:12px;color:var(--text-tertiary);">⏳ AI思考中...</span></div>';
-				 chatMsg.scrollTop = chatMsg.scrollHeight;
-
-				 try {
-					 const resp = await fetch('/pipeline/chat', {
-						 method: 'POST',
-						 headers: {'Content-Type': 'application/json'},
-						 body: JSON.stringify({message: msg, context: currentIdeaContext || '', task_path: currentTaskPath})
-					 });
-					 const data = await resp.json();
-					 chatMsg.querySelector('div:last-child').remove();
-					 if (data.success) {
-						 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;"><span style="background:var(--bg-surface);border:1px solid var(--border-light);padding:6px 12px;border-radius:12px 12px 12px 2px;display:inline-block;font-size:13px;color:var(--text-primary);">' + escapeHtml(data.reply) + '</span></div>';
-					 } else {
-						 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;color:var(--danger);font-size:13px;">❌ ' + escapeHtml(data.error) + '</div>';
-					 }
-				 } catch(e) {
-					 chatMsg.querySelector('div:last-child').remove();
-					 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;color:var(--danger);font-size:13px;">❌ 请求失败: ' + e.message + '</div>';
-				 }
-				 chatMsg.scrollTop = chatMsg.scrollHeight;
-			 });
-
 			 const data = await resp.json();
 			 if (!data.success) {
 				 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger)">查询失败: ' + data.error + '</div>';
@@ -4653,16 +4622,43 @@ function renderSimpleMarkdown(md) {
 // ============================================================
 	 // 结果目录浏览
 	 // ============================================================
-	 document.getElementById('fileBrowserGoBtn').addEventListener('click', function() { loadFileBrowser(); });
-	 document.getElementById('fileBrowserPath').addEventListener('keypress', function(e) { if (e.key === 'Enter') loadFileBrowser(); });
+	 document.getElementById('fileBrowserGoBtn').addEventListener('click', function() { loadFileBrowserFromSelect(); });
+	 document.getElementById('fileBrowserRefreshBtn').addEventListener('click', function() { populateFileBrowserSelect(); });
 
-	 function loadFileBrowser() {
-		 var pathInput = document.getElementById('fileBrowserPath');
-		 var path = pathInput.value.trim();
-		 if (!path) { path = '/home/devuser/workspace/reproduction_agent/InternAgent/results'; pathInput.value = path; }
+	 function loadFileBrowserFromSelect() {
+		 var sel = document.getElementById('fileBrowserSelect');
+		 var path = sel.value;
+		 if (!path) { alert('请选择一个任务目录'); return; }
+		 loadFileBrowser(path);
+	 }
+
+	 function populateFileBrowserSelect() {
+		 var sel = document.getElementById('fileBrowserSelect');
+		 fetch('/pipeline/list_files', {
+			 method: 'POST',
+			 headers: {'Content-Type': 'application/json'},
+			 body: JSON.stringify({path: '/home/devuser/workspace/reproduction_agent/InternAgent/results'})
+		 })
+		 .then(function(r) { return r.json(); })
+		 .then(function(data) {
+			 if (!data.success) return;
+			 sel.innerHTML = '<option value="">-- 请选择任务目录 --</option>';
+			 data.items.forEach(function(item) {
+				 if (item.is_dir) {
+					 var opt = document.createElement('option');
+					 opt.value = item.path;
+					 opt.textContent = item.name;
+					 sel.appendChild(opt);
+				 }
+			 });
+		 })
+		 .catch(function(e) { console.error('加载目录列表失败:', e); });
+	 }
+
+	 function loadFileBrowser(path) {
+		 if (!path) { path = '/home/devuser/workspace/reproduction_agent/InternAgent/results'; }
 		 var container = document.getElementById('fileBrowserContainer');
 		 container.innerHTML = '<div class="loading" style="text-align:center;padding:20px;"><div class="spinner"></div><div>加载中...</div></div>';
-
 		 fetch('/pipeline/list_files', {
 			 method: 'POST',
 			 headers: {'Content-Type': 'application/json'},
@@ -4671,7 +4667,6 @@ function renderSimpleMarkdown(md) {
 		 .then(function(r) { return r.json(); })
 		 .then(function(data) {
 			 if (!data.success) { container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--danger)">' + data.error + '</div>'; return; }
-			 pathInput.value = data.current_path;
 			 var html = '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;">路径: ' + data.current_path + '</div>';
 			 html += '<div style="background:var(--bg-surface);border-radius:8px;border:1px solid var(--border-light);overflow:hidden;">';
 			 if (data.parent_path) {
@@ -4691,7 +4686,7 @@ function renderSimpleMarkdown(md) {
 		 .catch(function(e) { container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--danger)">请求失败: ' + e.message + '</div>'; });
 	 }
 
-	 function goDir(path) { document.getElementById('fileBrowserPath').value = path; loadFileBrowser(); }
+	 function goDir(path) { loadFileBrowser(path); }
 
 	 function openFileEditor(filePath) {
 		 document.getElementById('fileEditorPath').textContent = filePath;
@@ -4717,6 +4712,29 @@ function renderSimpleMarkdown(md) {
 		 document.getElementById('fileEditorContainer').style.display = 'none';
 	 });
 
+
+	 // 自动加载结果目录下拉列表
+	 populateFileBrowserSelect();
+
+	 // 页面加载时检测是否有正在运行的流水线
+	 fetch('/pipeline_history')
+	 .then(function(r) { return r.json(); })
+	 .then(function(data) {
+		 if (data.success && data.records) {
+			 var active = data.records.filter(function(r) { return r.status === 'running'; });
+			 if (active.length > 0) {
+				 var latest = active[0];
+				 pipelineUUID = latest.uuid;
+				 document.getElementById('pipelineSetup').style.display = 'none';
+				 document.getElementById('pipelineMonitor').style.display = 'block';
+				 document.getElementById('stopPipelineBtn').style.display = 'inline-block';
+				 document.getElementById('pausePipelineBtn').style.display = 'inline-block';
+				 appendPipelineLog('🔄 已重新连接到运行中的流水线 (' + latest.start_time + ')');
+				 startPipelinePolling();
+			 }
+		 }
+	 })
+	 .catch(function(e) { console.error('恢复流水线失败:', e); });
 
 </script>
 

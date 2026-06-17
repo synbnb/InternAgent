@@ -13,11 +13,11 @@ memory:
     backend: file_system
     file_dir: results
   task_memory:
-    enabled: true
+    enabled: false
     memory_dir: ./config/mem_store
     top_k: 5
     alpha: 0.5
-    include_details: true
+    include_details: false
     embedding_mode: description
     embedding:
       model_type: local
@@ -47,7 +47,7 @@ tools:
 agents:
   generation:
     model_provider: default
-    generation_count: 3
+    generation_count: 2
     creativity: 0.7
     do_survey: false
     use_memory: false
@@ -55,9 +55,9 @@ agents:
     failed_similarity_threshold: 0.7
     max_regeneration_attempts: 1
   reflection:
-    count: 2
+    count: 1
     model_provider: default
-    detail_level: medium
+    detail_level: low
   evolution:
     model_provider: default
     evolution_count: 2
@@ -105,11 +105,11 @@ agents:
     use_llm_for_metric_direction: true
     use_llm_for_primary_metric: true
 workflow:
-  max_iterations: 2
-  top_ideas_count: 3
+  max_iterations: 1
+  top_ideas_count: 1
   top_ideas_evo: true
-  max_concurrent_tasks: 2
-  loop_rounds: 2
+  max_concurrent_tasks: 1
+  loop_rounds: 1
   loop_mode: incremental
 sci_task:
   scorer_model: deepseek-v4-pro
@@ -118,8 +118,8 @@ sci_task:
 experiment:
   model: glm-5
   use_mcts: false
-  max_runs: 2
-  max_parallel_experiments: 2
+  max_runs: 1
+  max_parallel_experiments: 1
   gpu_per_experiment: 1.0
 human_review:
   idea_review: true

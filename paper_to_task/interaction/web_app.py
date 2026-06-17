@@ -527,11 +527,11 @@ def pipeline_status():
 
     # 获取输出：活跃任务从内存取，历史任务从文件读
     if not is_historical:
-        output = task['output'][-500:]
+        output = task['output'][-10000:]
         elapsed = time_module.time() - task['start_time']
         elapsed_str = f"{int(elapsed // 60):02d}:{int(elapsed % 60):02d}"
     else:
-        output = _get_pipeline_log_lines(pipeline_uuid, max_lines=500)
+        output = _get_pipeline_log_lines(pipeline_uuid, max_lines=10000)
         elapsed = (task.get('end_time', task['start_time']) if task.get('end_time') else task['start_time']) - task['start_time']
         elapsed_str = f"{int(elapsed // 60):02d}:{int(elapsed % 60):02d}"
 
@@ -1634,16 +1634,6 @@ def _format_size(size):
     return f"{size:.1f} TB"
 
 
-if __name__ == '__main__':
-    print("=" * 60)
-    print("🌐 Paper-to-Task Web应用启动")
-    print("=" * 60)
-    print("📱 访问地址: http://localhost:5000")
-    print("📄 上传您的PDF文件开始体验")
-    print("=" * 60)
-
-    app.run(debug=True, host='0.0.0.0', port=5000)
-
 @app.route('/pipeline/chat', methods=['POST'])
 def api_pipeline_chat():
     """想法审批中的AI对话聊天"""
@@ -1751,4 +1741,15 @@ def api_save_file():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+
+
+if __name__ == '__main__':
+    print("=" * 60)
+    print("🌐 Paper-to-Task Web应用启动")
+    print("=" * 60)
+    print("📱 访问地址: http://localhost:5000")
+    print("📄 上传您的PDF文件开始体验")
+    print("=" * 60)
+
+    app.run(debug=True, host='0.0.0.0', port=5000)
 
