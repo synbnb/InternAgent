@@ -3371,6 +3371,9 @@ function renderSimpleMarkdown(md) {
 
  document.getElementById('stopPipelineBtn').style.display = 'inline-block';
 
+ const toggleBtn = document.getElementById('toggleAdvancedBtn');
+ if (toggleBtn) toggleBtn.style.display = 'none';
+
 
 
  const badge = document.getElementById('pipelineStatusBadge');
@@ -3709,8 +3712,8 @@ function renderSimpleMarkdown(md) {
 	 // ============================================================
 	 document.getElementById('refreshIdeasBtn').addEventListener('click', async function() {
 		 const select = document.getElementById('pipelineTaskPath');
-		 const launchDir = select.value;
-		 if (!launchDir) { alert('请先选择任务路径'); return; }
+		 const taskPath = select.value;
+		 if (!taskPath) { alert('请先选择任务路径'); return; }
 
 		 const container = document.getElementById('ideasContainer');
 		 container.innerHTML = '<div class="loading" style="text-align:center;padding:30px;"><div class="spinner"></div><div>正在查询...</div></div>';
@@ -3719,7 +3722,7 @@ function renderSimpleMarkdown(md) {
 			 const resp = await fetch('/pipeline/pending_ideas', {
 				 method: 'POST',
 				 headers: {'Content-Type': 'application/json'},
-				 body: JSON.stringify({launch_dir: launchDir})
+				 body: JSON.stringify({task_path: taskPath})
 			 });
 			 const data = await resp.json();
 			 if (!data.success) {
@@ -3770,7 +3773,7 @@ function renderSimpleMarkdown(md) {
 				 const resp = await fetch('/pipeline/approve_ideas', {
 					 method: 'POST',
 					 headers: {'Content-Type': 'application/json'},
-					 body: JSON.stringify({launch_dir: launchDir, action: 'approve', selected_ids: selected})
+					 body: JSON.stringify({task_path: taskPath, action: 'approve', selected_ids: selected})
 				 });
 				 const result = await resp.json();
 				 if (result.success) {
@@ -3783,7 +3786,7 @@ function renderSimpleMarkdown(md) {
 				 const resp = await fetch('/pipeline/approve_ideas', {
 					 method: 'POST',
 					 headers: {'Content-Type': 'application/json'},
-					 body: JSON.stringify({launch_dir: launchDir, action: 'reject'})
+					 body: JSON.stringify({task_path: taskPath, action: 'reject'})
 				 });
 				 const result = await resp.json();
 				 if (result.success) {
@@ -3801,8 +3804,8 @@ function renderSimpleMarkdown(md) {
 	 // ============================================================
 	 document.getElementById('refreshResultsBtn').addEventListener('click', async function() {
 		 const select = document.getElementById('pipelineTaskPath');
-		 const launchDir = select.value;
-		 if (!launchDir) { alert('请先选择任务路径'); return; }
+		 const taskPath = select.value;
+		 if (!taskPath) { alert('请先选择任务路径'); return; }
 
 		 const container = document.getElementById('resultsContainer');
 		 container.innerHTML = '<div class="loading" style="text-align:center;padding:30px;"><div class="spinner"></div><div>正在查询...</div></div>';
@@ -3811,7 +3814,7 @@ function renderSimpleMarkdown(md) {
 			 const resp = await fetch('/pipeline/result_review', {
 				 method: 'POST',
 				 headers: {'Content-Type': 'application/json'},
-				 body: JSON.stringify({launch_dir: launchDir})
+				 body: JSON.stringify({task_path: taskPath})
 			 });
 			 const data = await resp.json();
 			 if (!data.success) {

@@ -448,6 +448,7 @@ def start_pipeline():
             'output': [],
             'stored_output': [],
             'status': 'running',
+            'task_path': task_path,  # 记录任务路径，供审批API反查launch_dir
             'start_time': time_module.time(),
             'cmd': ' '.join(cmd),
             'task_path': task_path
@@ -1153,11 +1154,25 @@ def polish_paper():
 # ============================================================================
 
 
+def _find_latest_launch_dir(task_path):
+    """从任务路径自动查找最新的流水线启动目录"""
+    project_root = Path(__file__).parent.parent.parent
+    task_name = Path(task_path).name
+    results_dir = project_root / 'results' / task_name
+    if not results_dir.exists():
+        return ''
+    launches = sorted([d for d in results_dir.iterdir() if d.is_dir() and d.name.endswith('_launch')], reverse=True)
+    return str(launches[0]) if launches else ''
+
+
 @app.route('/pipeline/pending_ideas', methods=['POST'])
 def api_pending_ideas():
     """获取待审批的想法列表"""
     data = request.json
     launch_dir = data.get('launch_dir', '')
+    # 支持通过 task_path 自动查找
+    if not launch_dir or not os.path.exists(launch_dir):
+        launch_dir = _find_latest_launch_dir(data.get('task_path', ''))
 
     if not launch_dir or not os.path.exists(launch_dir):
         return jsonify({'success': False, 'error': '无效的启动目录'})
@@ -1188,6 +1203,9 @@ def api_approve_ideas():
     """审批想法：选择/修改/否决"""
     data = request.json
     launch_dir = data.get('launch_dir', '')
+    # 支持通过 task_path 自动查找
+    if not launch_dir or not os.path.exists(launch_dir):
+        launch_dir = _find_latest_launch_dir(data.get('task_path', ''))
     action = data.get('action', 'approve')  # approve / reject
     selected_ids = data.get('selected_ids')  # List[str] 或 None
     modifications = data.get('modifications')  # Dict[str, Dict] 或 None
@@ -1236,6 +1254,8 @@ def api_pipeline_status():
     """获取流水线审批状态（与原有的 pipeline_status 区分）"""
     data = request.json
     launch_dir = data.get('launch_dir', '')
+    if not launch_dir or not os.path.exists(launch_dir):
+        launch_dir = _find_latest_launch_dir(data.get('task_path', ''))
 
     if not launch_dir or not os.path.exists(launch_dir):
         return jsonify({'success': False, 'error': '无效的启动目录'})
@@ -1256,6 +1276,8 @@ def api_result_review():
     data = request.json
     launch_dir = data.get('launch_dir', '')
     result_index = data.get('result_index', -1)
+    if not launch_dir or not os.path.exists(launch_dir):
+        launch_dir = _find_latest_launch_dir(data.get('task_path', ''))
 
     if not launch_dir or not os.path.exists(launch_dir):
         return jsonify({'success': False, 'error': '无效的启动目录'})
@@ -1293,6 +1315,8 @@ def api_result_feedback():
     data = request.json
     launch_dir = data.get('launch_dir', '')
     feedback = data.get('feedback', {})
+    if not launch_dir or not os.path.exists(launch_dir):
+        launch_dir = _find_latest_launch_dir(data.get('task_path', ''))
 
     if not launch_dir or not os.path.exists(launch_dir):
         return jsonify({'success': False, 'error': '无效的启动目录'})
@@ -1352,6 +1376,8 @@ def api_list_experiment_results():
     """列出某个启动目录下所有实验的结果（用于结果审查 Dashboard）"""
     data = request.json
     launch_dir = data.get('launch_dir', '')
+    if not launch_dir or not os.path.exists(launch_dir):
+        launch_dir = _find_latest_launch_dir(data.get('task_path', ''))
 
     if not launch_dir or not os.path.exists(launch_dir):
         return jsonify({'success': False, 'error': '无效的启动目录'})
