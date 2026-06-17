@@ -1112,6 +1112,7 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 		 <div class="pipeline-sub-tab active" data-subtab="setup">▶ 启动配置</div>
 		 <div class="pipeline-sub-tab" data-subtab="ideas">💡 想法审批</div>
 		 <div class="pipeline-sub-tab" data-subtab="results">📊 结果评估</div>
+			 <div class="pipeline-sub-tab" data-subtab="comparison">📊 对比看板</div>
 	 </div>
 
 	 <!-- 启动配置 -->
@@ -1189,6 +1190,8 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 			 </div>
 				 <button class="btn" id="startPipelineBtn" style="width: auto; padding: 10px 24px;"> 启动流水线</button>
 				 <button class="btn" id="stopPipelineBtn" style="width: auto; padding: 10px 24px; background: #f44336; display: none;"> 停止</button>
+				 <button class="btn" id="pausePipelineBtn" style="width: auto; padding: 10px 24px; background: #c49b5a; display: none;">⏸ 暂停</button>
+				 <button class="btn" id="resumePipelineBtn" style="width: auto; padding: 10px 24px; background: #6a9a73; display: none;">▶ 继续</button>
 				 <span style="font-size: 11px; color: #666;">启动后可在下方实时查看输出</span>
 			 </div>
 		 </div>
@@ -1249,6 +1252,22 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 	 </div>
 	 </div>
 
+
+	 <!-- 对比看板 -->
+	 <div id="pipelineComparison" class="pipeline-sub-content">
+		 <div class="review-header">
+			 <div style="font-size: 16px; font-weight: 600; color: var(--text-primary);">📊 多候选对比看板</div>
+			 <div style="display: flex; gap: 8px;">
+				 <button class="btn" id="refreshComparisonBtn" style="width: auto; padding: 6px 14px; font-size: 12px; background: var(--text-secondary);"> 刷新</button>
+			 </div>
+		 </div>
+		 <div id="comparisonContainer">
+			 <div style="text-align: center; color: var(--text-tertiary); padding: 40px;">
+				 <div style="font-size: 36px; margin-bottom: 12px;">📊</div>
+				 <div>实验完成后，此处将展示所有候选方向的横向对比</div>
+			 </div>
+		 </div>
+	 </div>
 
 	 <!-- 配置标签页 -->
 
@@ -3449,6 +3468,8 @@ function renderSimpleMarkdown(md) {
  stopPipelinePolling();
 
  document.getElementById('stopPipelineBtn').style.display = 'none';
+	 document.getElementById('pausePipelineBtn').style.display = 'none';
+	 document.getElementById('resumePipelineBtn').style.display = 'none';
 
  const badge = document.getElementById('pipelineStatusBadge');
 
@@ -3706,6 +3727,127 @@ function renderSimpleMarkdown(md) {
 		 var contentId = 'pipeline' + subTab.charAt(0).toUpperCase() + subTab.slice(1);
 		 document.getElementById(contentId).classList.add('active');
 	 });
+
+	 // 暂停流水线
+	 document.getElementById('pausePipelineBtn').addEventListener('click', async function() {
+		 if (!pipelineUUID) return;
+		 const resp = await fetch('/pause_pipeline', {
+			 method: 'POST',
+			 headers: {'Content-Type': 'application/json'},
+			 body: JSON.stringify({pipeline_uuid: pipelineUUID})
+		 });
+		 const data = await resp.json();
+		 if (data.success) {
+			 document.getElementById('pausePipelineBtn').style.display = 'none';
+			 document.getElementById('resumePipelineBtn').style.display = 'inline-block';
+			 appendPipelineLog('⏸️ 流水线已暂停');
+			 var badge = document.getElementById('pipelineStatusBadge');
+			 badge.textContent = '⏸️ 已暂停';
+			 badge.style.background = '#fff3e0';
+		 } else { alert('暂停失败: ' + data.error); }
+	 });
+
+	 // 继续流水线
+	 document.getElementById('resumePipelineBtn').addEventListener('click', async function() {
+		 if (!pipelineUUID) return;
+		 const resp = await fetch('/resume_pipeline', {
+			 method: 'POST',
+			 headers: {'Content-Type': 'application/json'},
+			 body: JSON.stringify({pipeline_uuid: pipelineUUID})
+		 });
+		 const data = await resp.json();
+		 if (data.success) {
+			 document.getElementById('resumePipelineBtn').style.display = 'none';
+			 document.getElementById('pausePipelineBtn').style.display = 'inline-block';
+			 appendPipelineLog('▶️ 流水线已继续');
+			 var badge = document.getElementById('pipelineStatusBadge');
+			 badge.textContent = '⏳ 运行中';
+			 badge.style.background = '#fff3e0';
+		 } else { alert('继续失败: ' + data.error); }
+	 });
+
+	 // ============================================================
+	 // 对比看板
+	 // ============================================================
+	 document.getElementById('refreshComparisonBtn').addEventListener('click', async function() {
+		 const select = document.getElementById('pipelineTaskPath');
+		 const taskPath = select.value;
+		 if (!taskPath) { alert('请先选择任务路径'); return; }
+
+		 const container = document.getElementById('comparisonContainer');
+		 container.innerHTML = '<div class="loading" style="text-align:center;padding:30px;"><div class="spinner"></div><div>正在查询实验结果...</div></div>';
+
+		 try {
+			 const resp = await fetch('/pipeline/list_experiment_results', {
+				 method: 'POST',
+				 headers: {'Content-Type': 'application/json'},
+				 body: JSON.stringify({task_path: taskPath})
+			 });
+			 const data = await resp.json();
+			 if (!data.success) {
+				 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger)">查询失败: ' + data.error + '</div>';
+				 return;
+			 }
+
+			 if (!data.results || data.results.length === 0) {
+				 container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary)"><div style="font-size:36px;margin-bottom:12px;">📊</div><div>暂无实验结果</div></div>';
+				 return;
+			 }
+
+			 var html = '<div style="margin-bottom:16px;font-size:14px;font-weight:600;color:var(--text-primary);">共 ' + data.results.length + ' 个候选方向的实验结果</div>';
+
+			 // 汇总表格
+			 html += '<table class="result-table"><thead><tr>' +
+				 '<th>#</th><th>候选方向</th><th>状态</th><th>总分</th><th>操作</th>' +
+			 '</tr></thead><tbody>';
+
+			 data.results.forEach(function(r, i) {
+				 var scores = r.scores || {};
+				 var totalScore = 0, scoreCount = 0;
+				 for (var k in scores) { totalScore += scores[k]; scoreCount++; }
+				 var avg = scoreCount > 0 ? (totalScore / scoreCount).toFixed(1) : '-';
+				 var status = r.success ? '<span style="color:var(--success)">✅ 成功</span>' : '<span style="color:var(--danger)">❌ 失败</span>';
+				 var title = escapeHtml(r.idea_name || r.title || '候选 ' + (i+1));
+				 html += '<tr>' +
+					 '<td>' + (i+1) + '</td>' +
+					 '<td style="font-weight:500;color:var(--text-primary);">' + title + '</td>' +
+					 '<td>' + status + '</td>' +
+					 '<td style="font-weight:600;">' + avg + '</td>' +
+					 '<td><button class="btn btn-sm" style="padding:2px 10px;font-size:11px;background:var(--accent);margin:0;" onclick="alert(&#39;详细报告开发中&#39;)">查看</button></td>' +
+				 '</tr>';
+			 });
+
+			 html += '</tbody></table>';
+
+			 // 每个候选的详细卡片
+			 html += '<div style="margin-top:20px;font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">每个候选详情</div>';
+			 data.results.forEach(function(r, i) {
+				 var title = escapeHtml(r.idea_name || r.title || '候选 ' + (i+1));
+				 var desc = escapeHtml(r.description || r.method || '');
+				 var scores = r.scores || {};
+				 var scoreHtml = '';
+				 for (var k in scores) {
+					 scoreHtml += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">' +
+						 '<span style="color:var(--text-secondary);">' + k + '</span>' +
+						 '<span style="font-weight:600;color:var(--text-primary);">' + scores[k] + '/100</span></div>';
+				 }
+
+				 html += '<div class="idea-card">' +
+					 '<div class="idea-card-title">' + (i+1) + '. ' + title + '</div>' +
+					 (desc ? '<div class="idea-card-desc">' + desc.substring(0, 200) + '</div>' : '') +
+					 (scoreHtml ? '<div style="border-top:1px solid var(--border-light);padding-top:8px;margin-top:8px;">' + scoreHtml + '</div>' : '') +
+					 '<div class="idea-card-actions" style="margin-top:10px;">' +
+					 '<button class="btn btn-sm" style="padding:4px 12px;font-size:11px;background:var(--accent);" onclick="alert(&#39;详细报告开发中&#39;)">查看完整报告</button>' +
+					 '</div></div>';
+			 });
+
+			 container.innerHTML = html;
+		 } catch(e) {
+			 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger)">请求失败: ' + e.message + '</div>';
+		 }
+	 });
+
+
 
 	 // ============================================================
 	 // 想法审批
