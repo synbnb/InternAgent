@@ -335,6 +335,7 @@ def list_tasks():
 # sci_tasks 流水线启动与监视
 # ============================================================================
 import subprocess as subprocess_module
+import signal as signal_module
 import threading
 import time as time_module
 
@@ -662,7 +663,7 @@ def pause_pipeline():
         return jsonify({'success': False, 'error': f'当前状态为 {task["status"]}，无法暂停'})
 
     try:
-        task['process'].send_signal(subprocess_module.signal.SIGSTOP)
+        task['process'].send_signal(signal_module.SIGSTOP)
         task['status'] = 'paused'
         pause_line = '⏸️ 流水线已暂停'
         task['output'].append(pause_line)
@@ -687,7 +688,7 @@ def resume_pipeline():
         return jsonify({'success': False, 'error': f'当前状态为 {task["status"]}，无法继续'})
 
     try:
-        task['process'].send_signal(subprocess_module.signal.SIGCONT)
+        task['process'].send_signal(signal_module.SIGCONT)
         task['status'] = 'running'
         resume_line = '▶️ 流水线已继续'
         task['output'].append(resume_line)
@@ -1642,3 +1643,112 @@ if __name__ == '__main__':
     print("=" * 60)
 
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+@app.route('/pipeline/chat', methods=['POST'])
+def api_pipeline_chat():
+    """想法审批中的AI对话聊天"""
+    data = request.json
+    message = data.get('message', '')
+    context = data.get('context', '')
+
+    if not message:
+        return jsonify({'success': False, 'error': '消息不能为空'})
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(
+            api_key=API_KEY,
+            base_url='https://api.deepseek.com'
+        )
+
+        system_prompt = '你是一个科研助手，帮助研究人员讨论和完善实验想法。'
+        if context:
+            system_prompt += f'\n当前正在讨论的想法：\n{context}\n请根据用户的问题提供具体的修改建议，帮助完善这个想法。'
+
+        response = client.chat.completions.create(
+            model='deepseek-chat',
+            messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': message}
+            ],
+            temperature=0.7,
+            max_tokens=2000
+        )
+
+        reply = response.choices[0].message.content
+        return jsonify({'success': True, 'reply': reply})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/pipeline/list_files', methods=['POST'])
+def api_list_files():
+    """列出结果目录下的所有文件"""
+    data = request.json
+    path = data.get('path', '')
+
+    if not path or not os.path.exists(path):
+        # Try to find results dir relative to project root
+        project_root = Path(__file__).parent.parent.parent
+        results_dir = project_root / 'results'
+        if results_dir.exists():
+            path = str(results_dir)
+        else:
+            return jsonify({'success': False, 'error': '路径不存在'})
+
+    try:
+        path_obj = Path(path).resolve()
+        items = []
+        for item in sorted(path_obj.iterdir()):
+            items.append({
+                'name': item.name,
+                'path': str(item),
+                'is_dir': item.is_dir(),
+                'size': item.stat().st_size if item.is_file() else 0,
+                'mtime': item.stat().st_mtime
+            })
+        return jsonify({
+            'success': True,
+            'current_path': str(path_obj),
+            'items': items,
+            'parent_path': str(path_obj.parent) if str(path_obj.parent) != str(path_obj) else None
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/pipeline/read_file', methods=['POST'])
+def api_read_file():
+    """读取文件内容"""
+    data = request.json
+    file_path = data.get('path', '')
+
+    if not file_path or not os.path.exists(file_path) or os.path.isdir(file_path):
+        return jsonify({'success': False, 'error': '文件不存在'})
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return jsonify({'success': True, 'content': content, 'path': file_path})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/pipeline/save_file', methods=['POST'])
+def api_save_file():
+    """保存文件内容"""
+    data = request.json
+    file_path = data.get('path', '')
+    content = data.get('content', '')
+
+    if not file_path:
+        return jsonify({'success': False, 'error': '路径不能为空'})
+
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return jsonify({'success': True, 'message': '保存成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+

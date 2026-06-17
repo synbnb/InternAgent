@@ -1113,6 +1113,7 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 		 <div class="pipeline-sub-tab" data-subtab="ideas">💡 想法审批</div>
 		 <div class="pipeline-sub-tab" data-subtab="results">📊 结果评估</div>
 			 <div class="pipeline-sub-tab" data-subtab="comparison">📊 对比看板</div>
+			 <div class="pipeline-sub-tab" data-subtab="files">📂 结果目录</div>
 	 </div>
 
 	 <!-- 启动配置 -->
@@ -1251,8 +1252,6 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 			 </div>
 		 </div>
 	 </div>
-	 </div>
-	 </div>
 
 
 	 <!-- 对比看板 -->
@@ -1268,6 +1267,32 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 				 <div style="font-size: 36px; margin-bottom: 12px;">📊</div>
 				 <div>实验完成后，此处将展示所有候选方向的横向对比</div>
 			 </div>
+		 </div>
+	 </div>
+
+	 <!-- 结果目录 -->
+	 <div id="pipelineFiles" class="pipeline-sub-content">
+		 <div class="review-header">
+			 <div style="font-size: 16px; font-weight: 600; color: var(--text-primary);">📂 结果目录</div>
+		 </div>
+		 <div style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center;">
+			 <input type="text" class="feedback-input" id="fileBrowserPath" placeholder="输入路径或点击浏览..." style="min-height: auto; font-size: 13px; flex: 1; margin-bottom: 0;">
+			 <button class="btn" id="fileBrowserGoBtn" style="width: auto; padding: 6px 14px; font-size: 12px; margin: 0;"> 打开</button>
+		 </div>
+		 <div id="fileBrowserContainer">
+			 <div style="text-align: center; color: var(--text-tertiary); padding: 20px;">
+				 输入路径后点击"打开"查看文件列表
+			 </div>
+		 </div>
+		 <div id="fileEditorContainer" style="display: none; margin-top: 16px; border-top: 1px solid var(--border-light); padding-top: 16px;">
+			 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+				 <span id="fileEditorPath" style="font-size: 13px; font-weight: 600; color: var(--text-primary);"></span>
+				 <div style="display: flex; gap: 8px;">
+					 <button class="btn" id="fileEditorSaveBtn" style="width: auto; padding: 4px 12px; font-size: 11px; background: var(--accent); margin: 0;"> 保存</button>
+					 <button class="btn" id="fileEditorCloseBtn" style="width: auto; padding: 4px 12px; font-size: 11px; background: var(--text-secondary); margin: 0;"> 关闭</button>
+				 </div>
+			 </div>
+			 <textarea class="feedback-input" id="fileEditorContent" style="min-height: 400px; font-family: monospace; font-size: 13px; margin-bottom: 0;"></textarea>
 		 </div>
 	 </div>
 
@@ -1432,6 +1457,8 @@ let storedResult = null;  // stored result for source references
 let editingChecklistIndex = null;
 let pipelineUUID = null;
 let pipelinePollTimer = null;
+let currentTaskPath = '';
+let currentIdeaContext = '';
 
 
 	 const uploadArea = document.getElementById('uploadArea');
@@ -3776,6 +3803,7 @@ function renderSimpleMarkdown(md) {
 		 const select = document.getElementById('pipelineTaskPath');
 		 const taskPath = select.value;
 		 if (!taskPath) { alert('请先选择任务路径'); return; }
+		 currentTaskPath = taskPath;
 
 		 const container = document.getElementById('comparisonContainer');
 		 container.innerHTML = '<div class="loading" style="text-align:center;padding:30px;"><div class="spinner"></div><div>正在查询实验结果...</div></div>';
@@ -3892,15 +3920,32 @@ function renderSimpleMarkdown(md) {
 					 (scores.feasibility ? '<span class="idea-card-score" style="background:#e8f5e9;color:#2e7d32;">🔧 可行性 ' + scores.feasibility + '/10</span>' : '') +
 					 (scores.relevance ? '<span class="idea-card-score" style="background:#fff3e0;color:#e65100;">📌 相关性 ' + scores.relevance + '/10</span>' : '') +
 					 '</div>' +
-					 '<div class="idea-card-desc">' + escapeHtml(desc.substring(0, 300)) + '</div>' +
+					 '<div class="idea-card-desc">' + escapeHtml(desc) + '</div>' +
 					 '<div class="idea-card-actions">' +
+					 '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
 					 '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" class="idea-select" value="' + (idea.id || i) + '"> 选择此方向</label>' +
+					 '<button class="btn btn-sm" onclick="openIdeaEditor(' + i + ')" style="padding:2px 10px;font-size:11px;background:var(--text-secondary);margin:0;">✏️ 编辑</button>' +
+					 '</div>' +
+					 '<div class="idea-editor" id="ideaEditor_' + i + '" style="display:none;margin-top:8px;">' +
+					 '<textarea class="feedback-input" id="ideaText_' + i + '" style="min-height:120px;font-size:13px;margin-bottom:6px;">' + escapeHtml(desc) + '</textarea>' +
+					 '<button class="btn btn-sm" onclick="saveIdeaEdit(' + i + ')" style="padding:4px 12px;font-size:11px;background:var(--accent);margin:0;"> 保存修改</button>' +
+					 '</div>' +
 					 '</div></div>';
 			 });
 			 html += '<div style="margin-top:16px;display:flex;gap:8px;">' +
 				 '<button class="btn" id="approveIdeasBtn" style="padding:10px 24px;">✅ 确认选择</button>' +
 				 '<button class="btn" id="rejectIdeasBtn" style="padding:10px 24px;background:#f44336;">❌ 否决全部</button>' +
-				 '<span id="ideaSelectCount" style="font-size:12px;color:var(--text-tertiary);align-self:center;">已选: 0</span></div>';
+				 '<span id="ideaSelectCount" style="font-size:12px;color:var(--text-tertiary);align-self:center;">已选: 0</span></div>' +
+			 '<div style="margin-top:24px;border-top:2px solid var(--border-light);padding-top:16px;">' +
+			 '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">💬 与AI讨论想法</div>' +
+			 '<div id="ideaChatMessages" style="background:var(--bg-canvas);border-radius:8px;padding:12px;max-height:300px;overflow-y:auto;margin-bottom:8px;font-size:13px;line-height:1.6;">' +
+			 '<div style="text-align:center;color:var(--text-tertiary);padding:20px;">选择某个想法后，在此处与AI讨论修改方向</div>' +
+			 '</div>' +
+			 '<div style="display:flex;gap:8px;">' +
+			 '<textarea class="feedback-input" id="ideaChatInput" placeholder="输入您的意见或修改建议..." style="min-height:40px;font-size:13px;margin-bottom:0;flex:1;"></textarea>' +
+			 '<button class="btn" id="ideaChatSendBtn" style="width:auto;padding:8px 16px;margin:0;font-size:13px;">发送</button>' +
+			 '</div>' +
+			 '</div>';
 			 container.innerHTML = html;
 
 			 container.querySelectorAll('.idea-select').forEach(function(cb) {
@@ -3942,7 +3987,8 @@ function renderSimpleMarkdown(md) {
 		 } catch(e) {
 			 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger)">请求失败: ' + e.message + '</div>';
 		 }
-	 });
+		 });
+
 
 	 // ============================================================
 	 // 结果评估
@@ -3961,6 +4007,37 @@ function renderSimpleMarkdown(md) {
 				 headers: {'Content-Type': 'application/json'},
 				 body: JSON.stringify({task_path: taskPath})
 			 });
+			 // 聊天发送
+			 document.getElementById('ideaChatSendBtn').addEventListener('click', async function() {
+				 var input = document.getElementById('ideaChatInput');
+				 var msg = input.value.trim();
+				 if (!msg) return;
+				 var chatMsg = document.getElementById('ideaChatMessages');
+				 chatMsg.innerHTML += '<div style="text-align:right;margin:4px 0;"><span style="background:var(--accent);color:white;padding:6px 12px;border-radius:12px 12px 2px 12px;display:inline-block;font-size:13px;">' + escapeHtml(msg) + '</span></div>';
+				 input.value = '';
+				 chatMsg.innerHTML += '<div style="text-align:center;padding:8px;"><span style="font-size:12px;color:var(--text-tertiary);">⏳ AI思考中...</span></div>';
+				 chatMsg.scrollTop = chatMsg.scrollHeight;
+
+				 try {
+					 const resp = await fetch('/pipeline/chat', {
+						 method: 'POST',
+						 headers: {'Content-Type': 'application/json'},
+						 body: JSON.stringify({message: msg, context: currentIdeaContext || '', task_path: currentTaskPath})
+					 });
+					 const data = await resp.json();
+					 chatMsg.querySelector('div:last-child').remove();
+					 if (data.success) {
+						 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;"><span style="background:var(--bg-surface);border:1px solid var(--border-light);padding:6px 12px;border-radius:12px 12px 12px 2px;display:inline-block;font-size:13px;color:var(--text-primary);">' + escapeHtml(data.reply) + '</span></div>';
+					 } else {
+						 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;color:var(--danger);font-size:13px;">❌ ' + escapeHtml(data.error) + '</div>';
+					 }
+				 } catch(e) {
+					 chatMsg.querySelector('div:last-child').remove();
+					 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;color:var(--danger);font-size:13px;">❌ 请求失败: ' + e.message + '</div>';
+				 }
+				 chatMsg.scrollTop = chatMsg.scrollHeight;
+			 });
+
 			 const data = await resp.json();
 			 if (!data.success) {
 				 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger)">查询失败: ' + data.error + '</div>';
@@ -4539,7 +4616,109 @@ function renderSimpleMarkdown(md) {
 		closeChecklistModal();
 	}
 
- </script>
+	// 想法编辑函数
+	function openIdeaEditor(index) {
+		var editor = document.getElementById('ideaEditor_' + index);
+		if (!editor) return;
+		document.querySelectorAll('.idea-editor').forEach(function(el) { el.style.display = 'none'; });
+		editor.style.display = 'block';
+		var cards = document.querySelectorAll('.idea-card');
+		var title = cards[index] ? cards[index].querySelector('.idea-card-title').textContent : '';
+		var desc = cards[index] ? cards[index].querySelector('.idea-card-desc').textContent : '';
+		currentIdeaContext = '想法: ' + title + '\n描述: ' + desc;
+		var txt = document.getElementById('ideaText_' + index);
+		if (txt && desc) txt.value = desc;
+		var chatMsg = document.getElementById('ideaChatMessages');
+		if (chatMsg) {
+			chatMsg.innerHTML = '<div style="padding:8px;background:var(--bg-surface);border-radius:6px;margin-bottom:6px;"><strong>当前想法:</strong><br>' + title + '</div>' +
+				'<div style="padding:8px;background:var(--bg-surface);border-radius:6px;margin-bottom:6px;"><strong>描述:</strong><br>' + desc + '</div>' +
+				'<div style="text-align:center;color:var(--text-tertiary);padding:8px;">在下方输入框中与AI讨论修改想法</div>';
+		}
+	}
+
+	function saveIdeaEdit(index) {
+		var textarea = document.getElementById('ideaText_' + index);
+		if (!textarea) return;
+		var newDesc = textarea.value.trim();
+		if (!newDesc) { alert('内容不能为空'); return; }
+		var cards = document.querySelectorAll('.idea-card');
+		if (cards[index]) {
+			var descDiv = cards[index].querySelector('.idea-card-desc');
+			if (descDiv) descDiv.textContent = newDesc;
+		}
+		document.getElementById('ideaEditor_' + index).style.display = 'none';
+	}
+
+ 
+// ============================================================
+	 // 结果目录浏览
+	 // ============================================================
+	 document.getElementById('fileBrowserGoBtn').addEventListener('click', function() { loadFileBrowser(); });
+	 document.getElementById('fileBrowserPath').addEventListener('keypress', function(e) { if (e.key === 'Enter') loadFileBrowser(); });
+
+	 function loadFileBrowser() {
+		 var pathInput = document.getElementById('fileBrowserPath');
+		 var path = pathInput.value.trim();
+		 if (!path) { path = '/home/devuser/workspace/reproduction_agent/InternAgent/results'; pathInput.value = path; }
+		 var container = document.getElementById('fileBrowserContainer');
+		 container.innerHTML = '<div class="loading" style="text-align:center;padding:20px;"><div class="spinner"></div><div>加载中...</div></div>';
+
+		 fetch('/pipeline/list_files', {
+			 method: 'POST',
+			 headers: {'Content-Type': 'application/json'},
+			 body: JSON.stringify({path: path})
+		 })
+		 .then(function(r) { return r.json(); })
+		 .then(function(data) {
+			 if (!data.success) { container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--danger)">' + data.error + '</div>'; return; }
+			 pathInput.value = data.current_path;
+			 var html = '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;">路径: ' + data.current_path + '</div>';
+			 html += '<div style="background:var(--bg-surface);border-radius:8px;border:1px solid var(--border-light);overflow:hidden;">';
+			 if (data.parent_path) {
+				 html += '<div class="file-item" style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border-light);cursor:pointer;" onclick="goDir(\'' + data.parent_path + '\')"><span style="margin-right:8px;">📁</span><span style="color:var(--text-secondary);">..</span></div>';
+			 }
+			 data.items.forEach(function(item) {
+				 var icon = item.is_dir ? '📁' : '📄';
+				 var sizeStr = item.is_dir ? '' : ' <span style="font-size:11px;color:var(--text-tertiary);float:right;">' + (item.size > 1024 ? (item.size/1024).toFixed(1)+' KB' : item.size+' B') + '</span>';
+				 html += '<div class="file-item" style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border-light);cursor:pointer;" onclick="' + (item.is_dir ? 'goDir(\'' + item.path + '\')' : 'openFileEditor(\'' + item.path + '\')') + '">' +
+					 '<span style="margin-right:8px;">' + icon + '</span>' +
+					 '<span style="flex:1;color:var(--text-primary);font-size:13px;">' + escapeHtml(item.name) + '</span>' +
+					 sizeStr + '</div>';
+			 });
+			 html += '</div>';
+			 container.innerHTML = html;
+		 })
+		 .catch(function(e) { container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--danger)">请求失败: ' + e.message + '</div>'; });
+	 }
+
+	 function goDir(path) { document.getElementById('fileBrowserPath').value = path; loadFileBrowser(); }
+
+	 function openFileEditor(filePath) {
+		 document.getElementById('fileEditorPath').textContent = filePath;
+		 document.getElementById('fileEditorContent').value = '';
+		 document.getElementById('fileEditorContainer').style.display = 'block';
+		 fetch('/pipeline/read_file', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: filePath}) })
+		 .then(function(r) { return r.json(); })
+		 .then(function(data) { document.getElementById('fileEditorContent').value = data.success ? data.content : '读取失败: ' + data.error; })
+		 .catch(function(e) { document.getElementById('fileEditorContent').value = '请求失败: ' + e.message; });
+	 }
+
+	 document.getElementById('fileEditorSaveBtn').addEventListener('click', function() {
+		 var fp = document.getElementById('fileEditorPath').textContent;
+		 var ct = document.getElementById('fileEditorContent').value;
+		 if (!fp) return;
+		 fetch('/pipeline/save_file', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: fp, content: ct}) })
+		 .then(function(r) { return r.json(); })
+		 .then(function(d) { alert(d.success ? '✅ 保存成功' : '❌ ' + d.error); })
+		 .catch(function(e) { alert('❌ ' + e.message); });
+	 });
+
+	 document.getElementById('fileEditorCloseBtn').addEventListener('click', function() {
+		 document.getElementById('fileEditorContainer').style.display = 'none';
+	 });
+
+
+</script>
 
 
 
@@ -4633,3 +4812,5 @@ function renderSimpleMarkdown(md) {
 
 </html>
 
+
+	 
