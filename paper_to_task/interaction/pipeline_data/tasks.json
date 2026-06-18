@@ -1,10 +1,10 @@
 {
-  "pipeline_1781746998412": {
+  "pipeline_1781748415520": {
     "output": [],
     "stored_output": [],
     "status": "running",
     "task_path": "sci_tasks/tasks/ProteinBio_001_001",
-    "start_time": 1781747000.0132987,
+    "start_time": 1781748417.1680648,
     "cmd": "/opt/conda/envs/InternAgent/bin/python3 /home/devuser/workspace/reproduction_agent/InternAgent/launch_discovery.py --task sci_tasks/tasks/ProteinBio_001_001 --mode experiment --exp_backend claudecode"
   }
 }
