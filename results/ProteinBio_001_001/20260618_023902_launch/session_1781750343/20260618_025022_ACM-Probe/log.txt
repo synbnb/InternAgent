@@ -1,2 +1,0 @@
-Starting experiments for idea: ACM-Probe: Linear Attention Aggregation for Protein Contact Prediction and Interpretability from ProtT5
-Running Claude Code iteration 1 for run 1

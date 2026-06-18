@@ -1,2 +1,0 @@
-Starting experiments for idea: Reproducing ProtT5 with Corrected Span Corruption and Leakage-Free Packing
-Running Claude Code iteration 1 for run 1

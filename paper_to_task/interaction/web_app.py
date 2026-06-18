@@ -1442,6 +1442,7 @@ def api_list_experiment_results():
                     'report_preview': report_preview,
                     'images': images,
                     'has_final_info': True,
+                    'idea_name': entry,
                 })
             except Exception as e:
                 experiments.append({

@@ -3854,25 +3854,25 @@ document.getElementById('startPipelineBtn').addEventListener('click', async () =
 				 return;
 			 }
 
-			 if (!data.results || data.results.length === 0) {
+			 if (!data.experiments || data.experiments.length === 0) {
 				 container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary)"><div style="font-size:36px;margin-bottom:12px;">📊</div><div>暂无实验结果</div></div>';
 				 return;
 			 }
 
-			 var html = '<div style="margin-bottom:16px;font-size:14px;font-weight:600;color:var(--text-primary);">共 ' + data.results.length + ' 个候选方向的实验结果</div>';
+			 var html = '<div style="margin-bottom:16px;font-size:14px;font-weight:600;color:var(--text-primary);">共 ' + data.experiments.length + ' 个候选方向的实验结果</div>';
 
 			 // 汇总表格
 			 html += '<table class="result-table"><thead><tr>' +
 				 '<th>#</th><th>候选方向</th><th>状态</th><th>总分</th><th>操作</th>' +
 			 '</tr></thead><tbody>';
 
-			 data.results.forEach(function(r, i) {
+			 data.experiments.forEach(function(r, i) {
 				 var scores = r.scores || {};
 				 var totalScore = 0, scoreCount = 0;
 				 for (var k in scores) { totalScore += scores[k]; scoreCount++; }
 				 var avg = scoreCount > 0 ? (totalScore / scoreCount).toFixed(1) : '-';
-				 var status = r.success ? '<span style="color:var(--success)">✅ 成功</span>' : '<span style="color:var(--danger)">❌ 失败</span>';
-				 var title = escapeHtml(r.idea_name || r.title || '候选 ' + (i+1));
+				 var status = r.has_report ? '<span style="color:var(--success)">✅ 成功</span>' : '<span style="color:var(--danger)">❌ 失败</span>';
+				 var title = escapeHtml(r.idea_name || r.session_id || '候选 ' + (i+1));
 				 html += '<tr>' +
 					 '<td>' + (i+1) + '</td>' +
 					 '<td style="font-weight:500;color:var(--text-primary);">' + title + '</td>' +
@@ -3886,9 +3886,9 @@ document.getElementById('startPipelineBtn').addEventListener('click', async () =
 
 			 // 每个候选的详细卡片
 			 html += '<div style="margin-top:20px;font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">每个候选详情</div>';
-			 data.results.forEach(function(r, i) {
-				 var title = escapeHtml(r.idea_name || r.title || '候选 ' + (i+1));
-				 var desc = escapeHtml(r.description || r.method || '');
+			 data.experiments.forEach(function(r, i) {
+				 var title = escapeHtml(r.idea_name || r.session_id || '候选 ' + (i+1));
+				 var desc = escapeHtml(r.report_preview || '');
 				 var scores = r.scores || {};
 				 var scoreHtml = '';
 				 for (var k in scores) {
