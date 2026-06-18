@@ -4105,13 +4105,63 @@ document.getElementById('startPipelineBtn').addEventListener('click', async () =
 
 			 var html = '<div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary);">共 ' + data.results.length + ' 个实验结果</div>';
 			 data.results.forEach(function(r, i) {
-				 html += '<div class="idea-card">' +
-					 '<div class="idea-card-title">' + (i+1) + '. ' + escapeHtml(r.title || '实验结果 ' + (i+1)) + '</div>' +
-					 '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">' + escapeHtml(r.description || '') + '</div>' +
-					 (r.score !== undefined ? '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">自动评分: ' + r.score + '/100</div>' : '') +
-					 '<div class="idea-card-actions"><button class="btn btn-sm" style="padding:4px 12px;font-size:11px;background:var(--accent);" onclick="alert(&#39;确认成功&#39;)">确认评分</button></div></div>';
+				 var scores = r.scores || {};
+				 var name = r.idea_name || r.title || '实验结果 ' + (i+1);
+				 var preview = r.report_preview || '';
+				 var images = r.report_images || [];
+
+				 var scoreHtml = '';
+				 for (var k in scores) {
+					 var label = k.replace(/_/g, ' ');
+					 scoreHtml += '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px;">' +
+						 '<span style="min-width:80px;color:var(--text-secondary);">' + escapeHtml(label) + '</span>' +
+						 '<input type="number" class="result-score-input" data-result="' + i + '" data-dim="' + k + '" value="' + scores[k] + '" min="0" max="100" style="width:60px;padding:2px 6px;border:1.5px solid var(--border-light);border-radius:4px;font-size:12px;text-align:center;">' +
+						 '<span style="color:var(--text-tertiary);">/100</span></div>';
+				 }
+
+				 html += '<div class="idea-card" data-result-idx="' + i + '">' +
+					 '<div class="idea-card-title">' + (i+1) + '. ' + escapeHtml(name) + '</div>' +
+					 (preview ? '<div class="result-preview" style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;padding:8px;background:var(--bg-canvas);border-radius:6px;max-height:80px;overflow:hidden;cursor:pointer;position:relative;" onclick="togglePreview(this)">' + escapeHtml(preview) + '<span style="position:absolute;bottom:4px;right:8px;font-size:11px;color:var(--accent);">点击展开</span></div>' : '') +
+					 scoreHtml +
+					 '<div class="idea-card-actions" style="margin-top:8px;"><button class="btn btn-sm result-confirm-btn" data-result="' + i + '" style="padding:4px 12px;font-size:11px;background:var(--accent);margin:0;"> 确认评分</button></div></div>';
 			 });
 			 container.innerHTML = html;
+
+			 // 绑定确认评分按钮
+			 container.querySelectorAll('.result-confirm-btn').forEach(function(btn) {
+				 btn.addEventListener('click', async function() {
+					 var idx = this.dataset.result;
+					 var card = container.querySelector('.idea-card[data-result-idx="' + idx + '"]');
+					 if (!card) return;
+					 var scores = {};
+					 card.querySelectorAll('.result-score-input').forEach(function(inp) {
+						 if (inp.dataset.result === idx) {
+							 scores[inp.dataset.dim] = parseFloat(inp.value) || 0;
+						 }
+					 });
+					 var feedback = {
+						 action: 'approve',
+						 result_index: parseInt(idx),
+						 user_scores: scores,
+						 comments: '用户确认评分'
+					 };
+
+					 const resp = await fetch('/pipeline/result_feedback', {
+						 method: 'POST',
+						 headers: {'Content-Type': 'application/json'},
+						 body: JSON.stringify({task_path: taskPath, feedback: feedback})
+					 });
+					 const result = await resp.json();
+					 if (result.success) {
+						 card.style.opacity = '0.6';
+						 card.style.borderLeft = '4px solid var(--success)';
+						 btn.textContent = '✅ 已确认';
+						 btn.disabled = true;
+					 } else {
+						 alert('提交失败: ' + result.error);
+					 }
+				 });
+			 });
 		 } catch(e) {
 			 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger)">请求失败: ' + e.message + '</div>';
 		 }
@@ -4736,6 +4786,16 @@ document.getElementById('startPipelineBtn').addEventListener('click', async () =
 		 currentIdeasData.splice(index, 1);
 		 var container = document.getElementById('ideasContainer');
 		 refreshIdeasDisplay(container);
+	 }
+
+	 function togglePreview(el) {
+		 if (el.style.maxHeight === '80px' || !el.style.maxHeight) {
+			 el.style.maxHeight = 'none';
+			 el.querySelector('span').textContent = '点击收起';
+		 } else {
+			 el.style.maxHeight = '80px';
+			 el.querySelector('span').textContent = '点击展开';
+		 }
 	 }
 
 	 function bindIdeaEvents(container) {

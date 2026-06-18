@@ -317,7 +317,7 @@ def write_result_for_review(
         "run_num": run_num,
         "timestamp": time.time(),
         "scores": scores,
-        "report_preview": report_text[:2000] if report_text else "",
+        "report_preview": report_text[:10000] if report_text else "",
         "report_images": report_images,
     }
     state["results"].append(result_entry)
