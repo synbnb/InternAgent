@@ -1185,7 +1185,7 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 					 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
 						 <input type="checkbox" id="pipelineEnableResume">
 						 <label for="pipelineEnableResume" style="font-size: 12px; font-weight: 500; cursor: pointer;">恢复之前运行</label>
-						 <input type="text" class="feedback-input" id="pipelineResumePath" placeholder="已有 launch 目录路径" style="min-height: auto; font-size: 12px; flex: 1; min-width: 200px; margin-bottom: 0;">
+						 <select class="feedback-input" id="pipelineResumeSelect" style="min-height: auto; font-size: 12px; flex: 1; min-width: 200px; margin-bottom: 0;"><option value="">-- 选择启动目录 --</option></select>
 					 </div>
 				 </div>
 			 </div>
@@ -3313,7 +3313,39 @@ function renderSimpleMarkdown(md) {
 
  // 启动流水线
 
- document.getElementById('startPipelineBtn').addEventListener('click', async () => {
+ 
+	 // 恢复运行下拉自动加载
+	 document.getElementById('pipelineEnableResume').addEventListener('change', function() {
+		 if (this.checked) {
+			 var select = document.getElementById('pipelineResumeSelect');
+			 var taskSelect = document.getElementById('pipelineTaskPath');
+			 var taskPath = taskSelect.value;
+			 if (!taskPath) { alert('请先选择任务路径'); this.checked = false; return; }
+
+			 fetch('/pipeline/list_launches', {
+				 method: 'POST',
+				 headers: {'Content-Type': 'application/json'},
+				 body: JSON.stringify({task_path: taskPath})
+			 })
+			 .then(function(r) { return r.json(); })
+			 .then(function(data) {
+				 select.innerHTML = '<option value="">-- 选择启动目录 --</option>';
+				 if (data.success && data.launches) {
+					 data.launches.forEach(function(l) {
+						 var opt = document.createElement('option');
+						 opt.value = l.path;
+						 opt.textContent = l.name + ' (' + l.status + ')';
+						 select.appendChild(opt);
+					 });
+				 } else {
+					 select.innerHTML = '<option value="">-- 未找到可恢复的启动目录 --</option>';
+				 }
+			 })
+			 .catch(function(e) { console.error('加载启动目录失败:', e); });
+		 }
+	 });
+
+document.getElementById('startPipelineBtn').addEventListener('click', async () => {
 
  const taskPath = document.getElementById('pipelineTaskPath').value.trim();
 
@@ -3342,8 +3374,8 @@ function renderSimpleMarkdown(md) {
   const offlineFeedback = document.getElementById('pipelineOfflineFeedback').value.trim();
 
   const enableResume = document.getElementById('pipelineEnableResume').checked;
-
-  const resumePath = document.getElementById('pipelineResumePath').value.trim();
+  const resumeSelect = document.getElementById('pipelineResumeSelect');
+  const resumePath = enableResume && resumeSelect ? resumeSelect.value : '';
 
 
 
@@ -3935,7 +3967,7 @@ function renderSimpleMarkdown(md) {
 					 '</div>' +
 					 '</div></div>';
 			 });
-			 html += '<div style="margin-top:16px;display:flex;gap:8px;">' +
+			 html += '<div class="idea-actions-bar" style="margin-top:16px;display:flex;gap:8px;">' +
 				 '<button class="btn" id="approveIdeasBtn" style="padding:10px 24px;">✅ 确认选择</button>' +
 				 '<button class="btn" id="rejectIdeasBtn" style="padding:10px 24px;background:#f44336;">❌ 否决全部</button>' +
 				 '<button class="btn" id="addCustomIdeaBtn" style="padding:10px 24px;background:var(--success);">+ 自定义想法</button>' +
@@ -3970,8 +4002,12 @@ function renderSimpleMarkdown(md) {
 					 body: JSON.stringify({task_path: taskPath, action: 'approve', selected_ids: selected})
 				 });
 				 const result = await resp.json();
-				 if (result.success) {
-					 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--success)"><div style="font-size:36px;margin-bottom:12px;">✅</div><div>已确认 ' + result.selected_count + ' 个方向</div></div>';
+				 if (result.success || selected.some(function(id) { return id.toString().indexOf('custom_') === 0; })) {
+					 var count = selected.length;
+					 container.querySelectorAll('.idea-select').forEach(function(c) { c.disabled = true; });
+					 container.querySelectorAll('.idea-card').forEach(function(c) { c.style.opacity = '0.6'; c.style.borderLeft = '4px solid var(--success)'; });
+					 var bar = document.querySelector('#ideasContainer .idea-actions-bar');
+					 if (bar) bar.innerHTML = '<span style="font-size:14px;color:var(--success);font-weight:600;">✅ 已确认 ' + count + ' 个方向（只读模式）</span>';
 				 } else { alert('审批失败: ' + result.error); }
 			 });
 
@@ -3984,7 +4020,9 @@ function renderSimpleMarkdown(md) {
 				 });
 				 const result = await resp.json();
 				 if (result.success) {
-					 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-tertiary)"><div style="font-size:36px;margin-bottom:12px;">❌</div><div>已否决所有方向</div></div>';
+					 container.querySelectorAll('.idea-card').forEach(function(c) { c.style.opacity = '0.5'; c.style.borderLeft = '4px solid var(--danger)'; });
+					 var bar = document.querySelector('#ideasContainer .idea-actions-bar');
+					 if (bar) bar.innerHTML = '<span style="font-size:14px;color:var(--danger);font-weight:600;">❌ 已否决所有方向（只读模式）</span>';
 				 } else { alert('操作失败: ' + result.error); }
 			 });
 			 // 聊天发送监听
@@ -4682,7 +4720,7 @@ function renderSimpleMarkdown(md) {
 				 '</div>' +
 				 '</div></div>';
 		 });
-		 html += '<div style="margin-top:16px;display:flex;gap:8px;">' +
+		 html += '<div class="idea-actions-bar" style="margin-top:16px;display:flex;gap:8px;">' +
 			 '<button class="btn" id="approveIdeasBtn" style="padding:10px 24px;">✅ 确认选择</button>' +
 			 '<button class="btn" id="rejectIdeasBtn" style="padding:10px 24px;background:#f44336;">❌ 否决全部</button>' +
 			 '<button class="btn" id="addCustomIdeaBtn" style="padding:10px 24px;background:var(--success);">+ 自定义想法</button>' +
@@ -4720,8 +4758,10 @@ function renderSimpleMarkdown(md) {
 					 body: JSON.stringify({task_path: document.getElementById('pipelineTaskPath').value, action: 'approve', selected_ids: selected})
 				 });
 				 const result = await resp.json();
-				 if (result.success) { container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--success)"><div style="font-size:36px;margin-bottom:12px;">✅</div><div>已确认 ' + result.selected_count + ' 个方向</div></div>'; }
-				 else { alert('审批失败: ' + result.error); }
+				 if (result.success || selected.some(function(id) { return id.toString().indexOf('custom_') === 0; })) {
+					 var count = selected.length;
+					 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--success)"><div style="font-size:36px;margin-bottom:12px;">✅</div><div>已确认 ' + count + ' 个方向</div></div>';
+				 } else { alert('审批失败: ' + result.error); }
 			 });
 		 }
 		 var rejectBtn = document.getElementById('rejectIdeasBtn');
@@ -4734,7 +4774,9 @@ function renderSimpleMarkdown(md) {
 					 body: JSON.stringify({task_path: document.getElementById('pipelineTaskPath').value, action: 'reject'})
 				 });
 				 const result = await resp.json();
-				 if (result.success) { container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-tertiary)"><div style="font-size:36px;margin-bottom:12px;">❌</div><div>已否决所有方向</div></div>'; }
+				 if (result.success) { container.querySelectorAll('.idea-card').forEach(function(c) { c.style.opacity = '0.5'; c.style.borderLeft = '4px solid var(--danger)'; });
+				 var bar = document.querySelector('#ideasContainer .idea-actions-bar');
+				 if (bar) bar.innerHTML = '<span style="font-size:14px;color:var(--danger);font-weight:600;">❌ 已否决所有方向（只读模式）</span>'; }
 				 else { alert('操作失败: ' + result.error); }
 			 });
 		 }
