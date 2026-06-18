@@ -47,7 +47,7 @@ tools:
 agents:
   generation:
     model_provider: default
-    generation_count: 2
+    generation_count: 1
     creativity: 0.7
     do_survey: false
     use_memory: false
@@ -60,7 +60,7 @@ agents:
     detail_level: low
   evolution:
     model_provider: default
-    evolution_count: 2
+    evolution_count: 1
     creativity_level: 0.6
     temperature: 0.7
     use_memory: false

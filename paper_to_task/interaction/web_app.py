@@ -150,7 +150,8 @@ def refine_content():
             processing_results[task_id]['result'] = {
                 **current_result,
                 'task_info': refinement_result['task_info'],
-                'checklist': refinement_result['checklist']
+                'checklist': refinement_result['checklist'],
+                'quality': refinement_result.get('quality', current_result.get('quality', {}))
             }
 
             return jsonify({
@@ -245,7 +246,7 @@ def format_result_for_frontend(result):
     return {
         'success': True,
         'quality': {
-            'score': quality.get('score', 0),
+            'score': quality.get('overall_score', quality.get('score', 0)),
             'grade': quality.get('grade', 'N/A'),
             'passed': quality.get('passed', False),
             'dimension_scores': quality.get('dimension_scores', {})

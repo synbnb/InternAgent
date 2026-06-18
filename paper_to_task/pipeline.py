@@ -298,10 +298,10 @@ class PaperToTaskPipeline:
             summary = self.iterative_refiner.get_improvement_summary(refinement_result)
 
             return {
-                'success': True,
+                'success': refinement_result.get('success', True),
                 'task_info': refinement_result['task_info'],
                 'checklist': refinement_result['checklist'],
-                'improvements': refinement_result['improvements_made'],
+                'improvements': refinement_result.get('improvements_made', []),
                 'feedback_analysis': refinement_result['feedback_analysis'],
                 'quality': new_quality,
                 'summary': summary

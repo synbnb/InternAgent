@@ -36,6 +36,10 @@ class IterativeRefiner:
         # 分析反馈
         feedback_analysis = self._analyze_feedback(feedback, current_content)
 
+        # 记录原始内容用于比对
+        import copy
+        original_json = json.dumps(current_content, ensure_ascii=False, sort_keys=True)
+
         # 根据反馈类型选择改进策略
         if feedback_analysis['type'] == 'missing_info':
             refined_content = self._add_missing_info(current_content, feedback_analysis)
@@ -48,10 +52,24 @@ class IterativeRefiner:
         else:
             refined_content = self._general_improvement(current_content, feedback_analysis)
 
+        # 检查内容是否真的变化了
+        new_json = json.dumps(refined_content, ensure_ascii=False, sort_keys=True)
+        if new_json == original_json:
+            return {
+                'success': False,
+                'error': 'LLM未能生成有效的改进内容，请更换反馈描述重试',
+                'task_info': current_content['task_info'],
+                'checklist': current_content['checklist'],
+                'improvements_made': [],
+                'feedback_analysis': feedback_analysis,
+                'validation': {}
+            }
+
         # 验证改进后的内容
         validation_result = self._validate_refined_content(refined_content)
 
         return {
+            'success': True,
             'task_info': refined_content['task_info'],
             'checklist': refined_content['checklist'],
             'improvements_made': feedback_analysis.get('improvements', []),
