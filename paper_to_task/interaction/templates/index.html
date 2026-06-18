@@ -1460,6 +1460,7 @@ let pipelineUUID = null;
 let pipelinePollTimer = null;
 let currentTaskPath = '';
 let currentIdeaContext = '';
+let currentIdeasData = null;
 
 
 	 const uploadArea = document.getElementById('uploadArea');
@@ -3909,6 +3910,7 @@ function renderSimpleMarkdown(md) {
 				 return;
 			 }
 
+			 currentIdeasData = data.ideas;
 			 var html = '<div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary);">共 ' + data.ideas.length + ' 个候选方向，请选择 1-3 个进行实验</div>';
 			 data.ideas.forEach(function(idea, i) {
 				 const scores = idea.scores || {};
@@ -3936,6 +3938,7 @@ function renderSimpleMarkdown(md) {
 			 html += '<div style="margin-top:16px;display:flex;gap:8px;">' +
 				 '<button class="btn" id="approveIdeasBtn" style="padding:10px 24px;">✅ 确认选择</button>' +
 				 '<button class="btn" id="rejectIdeasBtn" style="padding:10px 24px;background:#f44336;">❌ 否决全部</button>' +
+				 '<button class="btn" id="addCustomIdeaBtn" style="padding:10px 24px;background:var(--success);">+ 自定义想法</button>' +
 				 '<span id="ideaSelectCount" style="font-size:12px;color:var(--text-tertiary);align-self:center;">已选: 0</span></div>' +
 			 '<div style="margin-top:24px;border-top:2px solid var(--border-light);padding-top:16px;">' +
 			 '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">💬 与AI讨论想法</div>' +
@@ -3984,6 +3987,50 @@ function renderSimpleMarkdown(md) {
 					 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-tertiary)"><div style="font-size:36px;margin-bottom:12px;">❌</div><div>已否决所有方向</div></div>';
 				 } else { alert('操作失败: ' + result.error); }
 			 });
+			 // 聊天发送监听
+			 document.getElementById('ideaChatSendBtn').addEventListener('click', async function() {
+				 var input = document.getElementById('ideaChatInput');
+				 var msg = input.value.trim();
+				 if (!msg) return;
+				 var chatMsg = document.getElementById('ideaChatMessages');
+				 chatMsg.innerHTML += '<div style="text-align:right;margin:4px 0;"><span style="background:var(--accent);color:white;padding:6px 12px;border-radius:12px 12px 2px 12px;display:inline-block;font-size:13px;">' + escapeHtml(msg) + '</span></div>';
+				 input.value = '';
+				 chatMsg.innerHTML += '<div style="text-align:center;padding:8px;"><span style="font-size:12px;color:var(--text-tertiary);">⏳ AI思考中...</span></div>';
+				 chatMsg.scrollTop = chatMsg.scrollHeight;
+				 try {
+					 const resp = await fetch('/pipeline/chat', {
+						 method: 'POST',
+						 headers: {'Content-Type': 'application/json'},
+						 body: JSON.stringify({message: msg, context: currentIdeaContext || ''})
+					 });
+					 const data = await resp.json();
+					 chatMsg.querySelector('div:last-child').remove();
+					 if (data.success) {
+						 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;"><span style="background:var(--bg-surface);border:1px solid var(--border-light);padding:6px 12px;border-radius:12px 12px 12px 2px;display:inline-block;font-size:13px;color:var(--text-primary);">' + escapeHtml(data.reply) + '</span></div>';
+					 } else {
+						 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;color:var(--danger);font-size:13px;">❌ ' + escapeHtml(data.error) + '</div>';
+					 }
+				 } catch(e) {
+					 chatMsg.querySelector('div:last-child').remove();
+					 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;color:var(--danger);font-size:13px;">❌ 请求失败: ' + e.message + '</div>';
+				 }
+				 chatMsg.scrollTop = chatMsg.scrollHeight;
+			 });
+
+			 // 自定义想法按钮
+			 document.getElementById('addCustomIdeaBtn').addEventListener('click', function() {
+				 var title = prompt('请输入自定义想法标题:');
+				 if (!title) return;
+				 var desc = prompt('请输入想法详细描述:');
+				 if (desc === null) desc = '';
+				 var idx = currentIdeasData ? currentIdeasData.length : 0;
+				 if (!currentIdeasData) currentIdeasData = [];
+				 currentIdeasData.push({id: 'custom_' + Date.now(), title: title, description: desc, scores: {}, is_custom: true});
+				 // 重新渲染
+				 var oldContainer = document.getElementById('ideasContainer');
+				 refreshIdeasDisplay(oldContainer);
+			 });
+
 
 		 } catch(e) {
 			 container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger)">请求失败: ' + e.message + '</div>';
@@ -4605,7 +4652,140 @@ function renderSimpleMarkdown(md) {
 		}
 	}
 
-	function saveIdeaEdit(index) {
+	
+
+	 function refreshIdeasDisplay(container) {
+		 if (!currentIdeasData) return;
+		 var html = '<div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary);">共 ' + currentIdeasData.length + ' 个候选方向，请选择 1-3 个进行实验</div>';
+		 currentIdeasData.forEach(function(idea, i) {
+			 var scores = idea.scores || {};
+			 var title = idea.title || '候选 ' + (i+1);
+			 var desc = idea.description || idea.method || '';
+			 var isCustom = idea.is_custom ? '<span style="font-size:10px;background:#f3e5f5;padding:2px 6px;border-radius:3px;margin-left:6px;">自定义</span>' : '';
+			 html += '<div class="idea-card" data-idea-id="' + (idea.id || i) + '">' +
+				 '<div class="idea-card-title">' + (i+1) + '. ' + escapeHtml(title) + isCustom + '</div>' +
+				 '<div class="idea-card-meta">' +
+				 (scores.novelty ? '<span class="idea-card-score" style="background:#e3f2fd;color:#1565c0;">⭐ 新颖度 ' + scores.novelty + '/10</span>' : '') +
+				 (scores.feasibility ? '<span class="idea-card-score" style="background:#e8f5e9;color:#2e7d32;">🔧 可行性 ' + scores.feasibility + '/10</span>' : '') +
+				 (scores.relevance ? '<span class="idea-card-score" style="background:#fff3e0;color:#e65100;">📌 相关性 ' + scores.relevance + '/10</span>' : '') +
+				 '</div>' +
+				 '<div class="idea-card-desc">' + escapeHtml(desc) + '</div>' +
+				 '<div class="idea-card-actions">' +
+				 '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+				 '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" class="idea-select" value="' + (idea.id || i) + '"> 选择此方向</label>' +
+				 '<button class="btn btn-sm" onclick="openIdeaEditor(' + i + ')" style="padding:2px 10px;font-size:11px;background:var(--text-secondary);margin:0;">✏️ 编辑</button>' +
+				 (isCustom ? '<button class="btn btn-sm" onclick="removeCustomIdea(' + i + ')" style="padding:2px 10px;font-size:11px;background:var(--danger);margin:0;">删除</button>' : '') +
+				 '</div>' +
+				 '<div class="idea-editor" id="ideaEditor_' + i + '" style="display:none;margin-top:8px;">' +
+				 '<textarea class="feedback-input" id="ideaText_' + i + '" style="min-height:120px;font-size:13px;margin-bottom:6px;">' + escapeHtml(desc) + '</textarea>' +
+				 '<button class="btn btn-sm" onclick="saveIdeaEdit(' + i + ')" style="padding:4px 12px;font-size:11px;background:var(--accent);margin:0;"> 保存修改</button>' +
+				 '</div>' +
+				 '</div></div>';
+		 });
+		 html += '<div style="margin-top:16px;display:flex;gap:8px;">' +
+			 '<button class="btn" id="approveIdeasBtn" style="padding:10px 24px;">✅ 确认选择</button>' +
+			 '<button class="btn" id="rejectIdeasBtn" style="padding:10px 24px;background:#f44336;">❌ 否决全部</button>' +
+			 '<button class="btn" id="addCustomIdeaBtn" style="padding:10px 24px;background:var(--success);">+ 自定义想法</button>' +
+			 '<span id="ideaSelectCount" style="font-size:12px;color:var(--text-tertiary);align-self:center;">已选: 0</span></div>';
+
+		 container.innerHTML = html;
+		 // 重新绑定事件...
+		 bindIdeaEvents(container);
+	 }
+
+	 function removeCustomIdea(index) {
+		 if (!currentIdeasData || !confirm('确定删除此自定义想法？')) return;
+		 currentIdeasData.splice(index, 1);
+		 var container = document.getElementById('ideasContainer');
+		 refreshIdeasDisplay(container);
+	 }
+
+	 function bindIdeaEvents(container) {
+		 container.querySelectorAll('.idea-select').forEach(function(cb) {
+			 cb.addEventListener('change', function() {
+				 var count = container.querySelectorAll('.idea-select:checked').length;
+				 var el = document.getElementById('ideaSelectCount');
+				 if (el) el.textContent = '已选: ' + count;
+			 });
+		 });
+		 var approveBtn = document.getElementById('approveIdeasBtn');
+		 if (approveBtn) {
+			 approveBtn.addEventListener('click', async function() {
+				 var selected = [];
+				 container.querySelectorAll('.idea-select:checked').forEach(function(cb) { selected.push(cb.value); });
+				 if (selected.length === 0) { alert('请至少选择一个方向'); return; }
+				 const resp = await fetch('/pipeline/approve_ideas', {
+					 method: 'POST',
+					 headers: {'Content-Type': 'application/json'},
+					 body: JSON.stringify({task_path: document.getElementById('pipelineTaskPath').value, action: 'approve', selected_ids: selected})
+				 });
+				 const result = await resp.json();
+				 if (result.success) { container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--success)"><div style="font-size:36px;margin-bottom:12px;">✅</div><div>已确认 ' + result.selected_count + ' 个方向</div></div>'; }
+				 else { alert('审批失败: ' + result.error); }
+			 });
+		 }
+		 var rejectBtn = document.getElementById('rejectIdeasBtn');
+		 if (rejectBtn) {
+			 rejectBtn.addEventListener('click', async function() {
+				 if (!confirm('确定否决所有候选方向？')) return;
+				 const resp = await fetch('/pipeline/approve_ideas', {
+					 method: 'POST',
+					 headers: {'Content-Type': 'application/json'},
+					 body: JSON.stringify({task_path: document.getElementById('pipelineTaskPath').value, action: 'reject'})
+				 });
+				 const result = await resp.json();
+				 if (result.success) { container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-tertiary)"><div style="font-size:36px;margin-bottom:12px;">❌</div><div>已否决所有方向</div></div>'; }
+				 else { alert('操作失败: ' + result.error); }
+			 });
+		 }
+		 // 聊天发送
+		 var chatBtn = document.getElementById('ideaChatSendBtn');
+		 if (chatBtn) {
+			 chatBtn.addEventListener('click', async function() {
+				 var input = document.getElementById('ideaChatInput');
+				 var msg = input.value.trim();
+				 if (!msg) return;
+				 var chatMsg = document.getElementById('ideaChatMessages');
+				 chatMsg.innerHTML += '<div style="text-align:right;margin:4px 0;"><span style="background:var(--accent);color:white;padding:6px 12px;border-radius:12px 12px 2px 12px;display:inline-block;font-size:13px;">' + escapeHtml(msg) + '</span></div>';
+				 input.value = '';
+				 chatMsg.innerHTML += '<div style="text-align:center;padding:8px;"><span style="font-size:12px;color:var(--text-tertiary);">⏳ AI思考中...</span></div>';
+				 chatMsg.scrollTop = chatMsg.scrollHeight;
+				 try {
+					 const resp = await fetch('/pipeline/chat', {
+						 method: 'POST',
+						 headers: {'Content-Type': 'application/json'},
+						 body: JSON.stringify({message: msg, context: currentIdeaContext || ''})
+					 });
+					 const data = await resp.json();
+					 chatMsg.querySelector('div:last-child').remove();
+					 if (data.success) {
+						 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;"><span style="background:var(--bg-surface);border:1px solid var(--border-light);padding:6px 12px;border-radius:12px 12px 12px 2px;display:inline-block;font-size:13px;color:var(--text-primary);">' + escapeHtml(data.reply) + '</span></div>';
+					 } else {
+						 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;color:var(--danger);font-size:13px;">❌ ' + escapeHtml(data.error) + '</div>';
+					 }
+				 } catch(e) {
+					 chatMsg.querySelector('div:last-child').remove();
+					 chatMsg.innerHTML += '<div style="text-align:left;margin:4px 0;color:var(--danger);font-size:13px;">❌ 请求失败: ' + e.message + '</div>';
+				 }
+				 chatMsg.scrollTop = chatMsg.scrollHeight;
+			 });
+		 }
+		 // 自定义想法
+		 var customBtn = document.getElementById('addCustomIdeaBtn');
+		 if (customBtn) {
+			 customBtn.addEventListener('click', function() {
+				 var title = prompt('请输入自定义想法标题:');
+				 if (!title) return;
+				 var desc = prompt('请输入想法详细描述:') || '';
+				 if (!currentIdeasData) currentIdeasData = [];
+				 currentIdeasData.push({id: 'custom_' + Date.now(), title: title, description: desc, scores: {}, is_custom: true});
+				 var container = document.getElementById('ideasContainer');
+				 refreshIdeasDisplay(container);
+			 });
+		 }
+	 }
+
+function saveIdeaEdit(index) {
 		var textarea = document.getElementById('ideaText_' + index);
 		if (!textarea) return;
 		var newDesc = textarea.value.trim();
