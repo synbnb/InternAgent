@@ -328,10 +328,27 @@ def write_result_for_review(
 
 
 def submit_result_feedback(output_dir: str, feedback: dict) -> dict:
-    """用户提交结果反馈"""
+    """用户提交结果反馈，用户评分会写回 final_info.json"""
     review_dir = ensure_review_dir(output_dir)
     feedback_file = os.path.join(review_dir, RESULT_FEEDBACK_FILE)
     result_file = os.path.join(review_dir, RESULT_REVIEW_FILE)
+
+    # 如果用户提交了评分覆盖，写回 final_info.json
+    user_scores = feedback.get('user_scores', {})
+    result_index = feedback.get('result_index', -1)
+
+    if user_scores and result_index >= 0:
+        # 读取 result_review.json
+        state = read_state(result_file)
+        results = state.get('results', [])
+        if result_index < len(results):
+            results[result_index]['user_scores'] = user_scores
+            results[result_index]['user_reviewed'] = True
+            state['results'] = results
+            write_state(result_file, state)
+
+            # 写回到最新的 final_info.json
+            _apply_user_scores_to_final_info(output_dir, user_scores)
 
     feedback_state = {
         "status": STATUS_APPROVED,
@@ -339,9 +356,47 @@ def submit_result_feedback(output_dir: str, feedback: dict) -> dict:
         "feedback": feedback,
     }
     write_state(feedback_file, feedback_state)
-    write_state(result_file, {"status": STATUS_APPROVED})
+    # 更新结果状态，保留已写入的用户评分等数据
+    existing_state = read_state(result_file)
+    existing_state['status'] = STATUS_APPROVED
+    write_state(result_file, existing_state)
 
     return feedback_state
+
+
+def _apply_user_scores_to_final_info(output_dir: str, user_scores: dict):
+    """将用户评分写回到最新的 final_info.json"""
+    import glob
+    final_info_files = glob.glob(os.path.join(output_dir, 'session_*', '*', 'run_*', 'final_info.json'))
+    if not final_info_files:
+        final_info_files = glob.glob(os.path.join(output_dir, 'session_*', 'run_*', 'final_info.json'))
+
+    if not final_info_files:
+        return
+
+    latest = max(final_info_files, key=os.path.getmtime)
+    try:
+        with open(latest, 'r') as f:
+            info = json.load(f)
+
+        if 'sci_task' not in info:
+            info['sci_task'] = {}
+        if 'means' not in info['sci_task']:
+            info['sci_task']['means'] = {}
+
+        for dim, score in user_scores.items():
+            info['sci_task']['means'][dim] = score
+
+        if user_scores:
+            total = sum(user_scores.values()) / len(user_scores)
+            info['sci_task']['means']['total_score'] = round(total, 1)
+
+        info['sci_task']['scored_by'] = 'user'
+
+        with open(latest, 'w') as f:
+            json.dump(info, f, indent=2)
+    except Exception as e:
+        pass
 
 
 # ============================================================================

@@ -1113,6 +1113,7 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 		 <div class="pipeline-sub-tab" data-subtab="ideas">💡 想法审批</div>
 		 <div class="pipeline-sub-tab" data-subtab="results">📊 结果评估</div>
 			 <div class="pipeline-sub-tab" data-subtab="comparison">📊 对比看板</div>
+			 <div class="pipeline-sub-tab" data-subtab="summary">📋 最终结果</div>
 			 <div class="pipeline-sub-tab" data-subtab="files">📂 结果目录</div>
 	 </div>
 
@@ -1294,6 +1295,22 @@ select.feedback-input { appearance: none; background: var(--bg-subtle) url("data
 				 </div>
 			 </div>
 			 <textarea class="feedback-input" id="fileEditorContent" style="min-height: 400px; font-family: monospace; font-size: 13px; margin-bottom: 0;"></textarea>
+		 </div>
+	 </div>
+
+	 <!-- 最终结果 -->
+	 <div id="pipelineSummary" class="pipeline-sub-content">
+		 <div class="review-header">
+			 <div style="font-size: 16px; font-weight: 600; color: var(--text-primary);">📋 最终结果</div>
+			 <div style="display: flex; gap: 8px;">
+				 <button class="btn" id="refreshSummaryBtn" style="width: auto; padding: 6px 14px; font-size: 12px; background: var(--text-secondary);"> 刷新</button>
+			 </div>
+		 </div>
+		 <div id="summaryContainer">
+			 <div style="text-align: center; color: var(--text-tertiary); padding: 40px;">
+				 <div style="font-size: 36px; margin-bottom: 12px;">📋</div>
+				 <div>流水线完成后，最终结果将在此处展示</div>
+			 </div>
 		 </div>
 	 </div>
 

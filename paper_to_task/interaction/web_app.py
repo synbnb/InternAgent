@@ -1405,16 +1405,22 @@ def api_list_experiment_results():
         if not os.path.isdir(entry_path) or not entry.startswith('session_'):
             continue
 
-        # 查找实验运行目录
-        run_dirs = sorted([
-            d for d in os.listdir(entry_path)
-            if d.startswith('run_') and os.path.isdir(os.path.join(entry_path, d))
-        ])
+        # 查找实验目录（实验名目录，如 session_001/Exp_ProtT5/）
+        for exp_entry in sorted(os.listdir(entry_path)):
+            exp_path = os.path.join(entry_path, exp_entry)
+            if not os.path.isdir(exp_path) or exp_entry.startswith('session_'):
+                continue
 
-        for run_dir_name in run_dirs:
-            run_path = os.path.join(entry_path, run_dir_name)
-            final_info_path = os.path.join(run_path, 'final_info.json')
-            report_path = os.path.join(run_path, 'report', 'report.md')
+            # 查找实验运行目录
+            run_dirs = sorted([
+                d for d in os.listdir(exp_path)
+                if d.startswith('run_') and os.path.isdir(os.path.join(exp_path, d))
+            ])
+
+            for run_dir_name in run_dirs:
+                run_path = os.path.join(exp_path, run_dir_name)
+                final_info_path = os.path.join(run_path, 'final_info.json')
+                report_path = os.path.join(exp_path, 'report', 'report.md')
 
             if not os.path.exists(final_info_path):
                 continue
@@ -1455,7 +1461,7 @@ def api_list_experiment_results():
                     'report_preview': report_preview,
                     'images': images,
                     'has_final_info': True,
-                    'idea_name': entry,
+                    'idea_name': exp_entry,
                 })
             except Exception as e:
                 experiments.append({
@@ -1638,6 +1644,89 @@ def _get_dir_size(path):
     except (PermissionError, OSError):
         pass
     return total
+
+
+@app.route('/pipeline/final_summary', methods=['POST'])
+def api_final_summary():
+    """获取流水线最终结果摘要"""
+    data = request.json
+    launch_dir = data.get('launch_dir', '')
+    if not launch_dir or not os.path.exists(launch_dir):
+        launch_dir = _find_latest_launch_dir(data.get('task_path', ''))
+
+    if not launch_dir or not os.path.exists(launch_dir):
+        return jsonify({'success': False, 'error': '无效的启动目录'})
+
+    result = {'launch_dir': launch_dir}
+
+    # 1. 读取 discovery_summary.json
+    summary_path = os.path.join(launch_dir, 'discovery_summary.json')
+    if os.path.exists(summary_path):
+        with open(summary_path, 'r') as f:
+            result['summary'] = json.load(f)
+
+    # 2. 扫描 session 目录找所有实验结果
+    experiments = []
+    for entry in sorted(os.listdir(launch_dir)):
+        entry_path = os.path.join(launch_dir, entry)
+        if not os.path.isdir(entry_path) or not entry.startswith('session_'):
+            continue
+
+        # 查找实验目录（非session_开头的子目录）
+        for exp_name in sorted(os.listdir(entry_path)):
+            exp_path = os.path.join(entry_path, exp_name)
+            if not os.path.isdir(exp_path) or exp_name.startswith('session_'):
+                continue
+
+            run_dirs = sorted([d for d in os.listdir(exp_path) if d.startswith('run_')])
+            for run_dir_name in run_dirs:
+                run_path = os.path.join(exp_path, run_dir_name)
+                final_info_path = os.path.join(run_path, 'final_info.json')
+                report_path = os.path.join(exp_path, 'report', 'report.md')
+
+                if not os.path.exists(final_info_path):
+                    continue
+
+                try:
+                    with open(final_info_path, 'r') as f:
+                        final_info = json.load(f)
+
+                    scores = final_info.get('sci_task', {}).get('means', {})
+                    scored_by = final_info.get('sci_task', {}).get('scored_by', 'auto')
+
+                    report_text = ''
+                    if os.path.exists(report_path):
+                        with open(report_path, 'r', encoding='utf-8') as f:
+                            report_text = f.read()[:5000]
+
+                    experiments.append({
+                        'idea_name': exp_name,
+                        'run_id': run_dir_name,
+                        'path': run_path,
+                        'scores': scores,
+                        'scored_by': scored_by,
+                        'success': final_info.get('success', False),
+                        'report_preview': report_text,
+                        'performance': final_info.get('performance', {}),
+                    })
+                except Exception:
+                    pass
+
+    result['experiments'] = experiments
+    result['total'] = len(experiments)
+
+    # 3. 找最佳结果
+    best = None
+    best_score = -1
+    for exp in experiments:
+        scores = exp.get('scores', {})
+        total_score = scores.get('total_score', 0)
+        if total_score > best_score:
+            best_score = total_score
+            best = exp
+    result['best_experiment'] = best
+
+    return jsonify({'success': True, 'result': result})
 
 
 def _format_size(size):
