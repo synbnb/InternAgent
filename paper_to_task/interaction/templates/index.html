@@ -3659,7 +3659,23 @@ document.getElementById('startPipelineBtn').addEventListener('click', async () =
 
  } catch (error) {
 
- appendPipelineLog(` 轮询状态失败: ${error}`);
+ appendPipelineLog(`⚠️ 轮询状态失败: ${error}`);
+			 // 尝试自动查找运行中的流水线
+			 fetch('/pipeline/list_launches', {
+				 method: 'POST',
+				 headers: {'Content-Type': 'application/json'},
+				 body: JSON.stringify({task_path: document.getElementById('pipelineTaskPath').value || 'ProteinBio_001_001'})
+			 })
+			 .then(function(r) { return r.json(); })
+			 .then(function(data) {
+				 if (data.success && data.launches && data.launches.length > 0) {
+					 var latest = data.launches[0];
+					 appendPipelineLog('🔄 发现运行中的流水线: ' + latest.name + '，正在重新连接...');
+					 // 显示重新连接按钮
+					 showRestartPipeline();
+				 }
+			 })
+			 .catch(function(e) { console.error('自动检测失败:', e); });
 
  }
 

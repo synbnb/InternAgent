@@ -1,0 +1,10 @@
+{
+  "ss3_train": 10848,
+  "ss3_res": 2778438,
+  "cb513": 513,
+  "casp12": 21,
+  "ts115": 115,
+  "loc": 9769,
+  "pretrain": "UniRef50 + BFD (393B AA)",
+  "compute": "Summit: 5,616 V100 GPUs; TPU Pod: 1,024 cores"
+}

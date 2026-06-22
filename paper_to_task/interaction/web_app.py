@@ -567,7 +567,20 @@ def pipeline_history():
         seen.add(uid)
         end_time = t.get('end_time', t['start_time'])
         if t.get('status') in ('running',):
-            continue  # 历史记录中跳过 running（如果有残留）
+            # 运行中的记录也返回给前端以便刷新后恢复
+            records.append({
+                'uuid': uid,
+                'status': t.get('status', 'unknown'),
+                'task_path': t.get('task_path', ''),
+                'cmd': t.get('cmd', ''),
+                'start_time': time_module.strftime('%Y-%m-%d %H:%M:%S', time_module.localtime(t['start_time'])),
+                'start_ts': t['start_time'],
+                'end_time': '',
+                'end_ts': 0,
+                'elapsed': 0,
+                'is_active': True
+            })
+            continue
         records.append({
             'uuid': uid,
             'status': t.get('status', 'unknown'),

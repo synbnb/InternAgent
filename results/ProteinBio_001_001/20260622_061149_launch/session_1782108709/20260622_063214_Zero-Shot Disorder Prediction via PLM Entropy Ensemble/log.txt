@@ -1,0 +1,2 @@
+Starting experiments for idea: A Zero-Shot Ensemble Method for Intrinsic Disorder Prediction Using Per-Residue Prediction Entropy from Multiple Protein Language Models
+Running Claude Code iteration 1 for run 1
