@@ -1,0 +1,45 @@
+{
+    "timestamp": "2026-06-23T06:58:32.399642",
+    "launch_id": "20260623_064038_launch",
+    "task": "Test_001",
+    "task_dir": "sci_tasks/tasks/Test_001",
+    "task_type": "sci",
+    "original_task_dir": "sci_tasks/tasks/Test_001",
+    "mode": "experiment",
+    "output_dir": "results/Test_001/20260623_064038_launch",
+    "base_output_dir": "results/Test_001",
+    "skip_idea_generation": false,
+    "total_rounds": 1,
+    "loop_rounds": 1,
+    "loop_mode": "incremental",
+    "sessions": [
+        "session_1782196838"
+    ],
+    "total_ideas": 1,
+    "total_successful": 1,
+    "total_failed": 0,
+    "rounds": [
+        {
+            "round": 1,
+            "session_id": "session_1782196838",
+            "results": [
+                {
+                    "idea_name": "ReproLR",
+                    "success": true,
+                    "gpu_ids": "0",
+                    "folder_name": "results/Test_001/20260623_064038_launch/session_1782196838/20260623_065345_ReproLR",
+                    "code_path": "results/Test_001/20260623_064038_launch/session_1782196838/20260623_065345_ReproLR",
+                    "performance": {}
+                }
+            ],
+            "successful": 1,
+            "failed": 0
+        }
+    ],
+    "incremental_mode": {
+        "final_best_code_path": "sci_tasks/tasks/Test_001",
+        "final_best_performance": null
+    },
+    "exp_backend": "claudecode",
+    "model": "glm-5"
+}

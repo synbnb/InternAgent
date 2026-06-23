@@ -1,0 +1,62 @@
+================================================================================
+                    Experiment Report
+================================================================================
+
+Experiment: A Reproducible Linear Regression Pipeline with Consistent
+            Standardization and Numerical Stability (ReproLR)
+
+Total runs: 2 (run_0, run_1)
+
+
+--------------------------------------------------------------------------------
+Run 0 — Baseline
+--------------------------------------------------------------------------------
+
+What was implemented:
+  This run was a placeholder/baseline entry. No code or pipeline
+  implementation was generated. The run directory contains only the
+  final_info.json scoring file.
+
+Results:
+  - Sci-task total score: 0 / 100 (baseline, no evaluation performed).
+
+
+--------------------------------------------------------------------------------
+Run 1 — Full ReproLR Pipeline Implementation
+--------------------------------------------------------------------------------
+
+What was implemented:
+  A complete four-stage OLS regression pipeline in code/experiment.py:
+
+  1. Data Ingestion  — Load synthetic_data.csv (1000 samples, 5 features),
+                       split 80/20 train/test.
+  2. Preprocessing   — Feature standardization (Z-score via training mean/std),
+                       response centering, condition-number check via SVD.
+  3. Model Fitting   — Pivoted QR decomposition (scipy.linalg.qr with
+                       pivoting) → triangular solve → coefficient recovery
+                       on original feature scale.
+  4. Evaluation      — MSE, RMSE, R² computation; report generation with
+                       scatter plot and residual histogram saved to report/.
+
+  The implementation follows the algorithm specification in INSTRUCTIONS.md,
+  including the two-stage coefficient recovery (center response → solve on
+  standardized design → back-transform to original scale).
+
+Results (successful — exit code 0):
+  - Train / Test split: 800 / 200 samples
+  - Condition number κ: 1.1255 (well below 1e8 threshold, stable)
+  - Learned coefficients: β = [0.573094, 0.861125, 0.293627, 0.143176, 0.291745]
+  - Intercept: 3.721483
+  - MSE  = 0.010670
+  - RMSE = 0.103296
+  - R²   = 0.991174 (99.1% variance explained)
+  - Generated artifacts:
+      • report/report.md           — Full experiment report with metrics and
+                                     coefficient table
+      • report/images/actual_vs_predicted.png  — Scatter plot
+      • report/images/residual_histogram.png    — Residual distribution
+      • outputs/coefficients.csv   — Coefficient table
+      • outputs/results.npz        — Numeric results (NumPy archive)
+  - LLM judge score: 0.0 / 100 (item scores: 0, 0, 0)
+
+================================================================================

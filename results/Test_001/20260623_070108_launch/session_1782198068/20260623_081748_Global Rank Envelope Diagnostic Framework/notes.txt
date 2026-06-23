@@ -1,0 +1,121 @@
+# Name: Global Rank Envelope Diagnostic Framework
+# Title: A Reproducible Framework for Formal Testing of Linear Regression Assumptions Using Global Rank Envelopes on Residual Plots
+# Description: This improved method provides a principled, fully specified workflow for validating linear regression assumptions through residual diagnostic plots. It computes well-defined functional summary statistics from the fitted model, then constructs simultaneous confidence bands (global envelopes) via the global rank envelope procedure of Myllymäki et al. (2017). The observed diagnostic curves are compared against these envelopes to objectively test for linearity, normality, and homoscedasticity. All smoothing parameters, grid definitions, and test mechanics are explicitly given, ensuring reproducibility. The method integrates these formal tests with conventional goodness-of-fit metrics (R², overall F-test) into a comprehensive diagnostic report.
+# Method: The refined method consists of five clearly defined stages: (I) data preparation, (II) model fitting and extraction of empirical diagnostic curves, (III) simulation and construction of global rank envelopes, (IV) formal hypothesis testing and p‑value calculation, and (V) integrated reporting.
+
+────────────────────────────────────────────
+I. Data Preparation
+────────────────────────────────────────────
+Input: synthetic dataset 𝒟 = {(x_i, y_i)}_{i=1}^{n} with n = 1000, p = 5 features.
+- Randomly split 𝒟 into training (80%, n_train = 800) and test (20%, n_test = 200) sets. No stratification is applied; a simple random partition suffices given the sample size.
+
+────────────────────────────────────────────
+II. Model Fitting & Empirical Diagnostic Curves
+────────────────────────────────────────────
+Fit the linear model y = X β + ε, ε ~ N(0, σ² I) on the training set. Let β̂ be the OLS estimator, ŷ = X β̂, residuals r = y – ŷ, and standardized residuals d_i = r_i / (σ̂√(1 – h_ii)) where σ̂² = ‖r‖²/(n_train – p – 1) and h_ii are leverages.
+
+Three functional statistics T(r) are defined on a common evaluation grid of m = 200 points:
+
+a) Linearity test (residuals vs fitted): T_RVF(f) is a LOESS smooth of r against fitted values ŷ, with span = 0.5. The grid {f_k} consists of m equally spaced points spanning the range of ŷ.
+
+b) Normality test (Q–Q plot): Let q_theo(k) = Φ⁻¹((k – 0.5)/m) for k = 1,…,m be theoretical quantiles from the standard normal distribution. The observed quantiles are the ordered standardized residuals d_{(k)} (interpolated if needed). The functional statistic is the difference curve Δ_qq,k = d_{(k)} – q_theo(k).
+
+c) Homoscedasticity test (scale‑location): T_SL(f) is a LOESS smooth of √|d| against fitted values ŷ (span = 0.5), evaluated at the same grid points as T_RVF.
+
+All LOESS fits use a degree‑2 local polynomial; the span is chosen to capture medium‑scale trends without over‑smoothing. These specific choices make the curves reproducible.
+
+────────────────────────────────────────────
+III. Global Rank Envelope Construction
+────────────────────────────────────────────
+Let T_obs ∈ ℝ^m be the vector of the observed statistic for a given plot. Under the null hypothesis of correct model specification, we simulate B = 1000 artificial response vectors from the fitted model:
+   y*_b ~ N(X_train β̂, σ̂² I),  b = 1,…,B.
+For each simulated dataset we refit the full linear model, obtain residuals, and recompute the same functional statistic T*_b. The set {T*_1, …, T*_B} approximates the null distribution.
+
+We build a 100(1 – α)% global envelope with α = 0.05 using the global rank envelope procedure (Myllymäki et al., 2017). The steps are:
+
+1. Compute the pointwise median (or mean) of the simulated curves, denoted M ∈ ℝ^m, to serve as a central reference.
+2. For each simulated curve i, compute a scalar measure of extremeness e_i, such as the maximum absolute deviation from M:
+      e_i = max_{k=1,…,m} |T*_{i,k} – M_k|.
+   Also compute e_obs for the observed curve.
+3. Sort the simulated extremeness values to obtain e_(1) ≤ e_(2) ≤ … ≤ e_(B). Choose the critical rank r = ⌈(1 – α)(B + 1)⌉. Then the most extreme allowable curve under H_0 is given by e_crit = e_(r).
+4. The global envelope consists of the lower and upper bounds L_k = M_k – e_crit and U_k = M_k + e_crit. This guarantees that, under H_0, the probability that the entire observed curve lies within [L, U] is at least 1 – α (up to simulation error).
+
+For the Q–Q plot, we apply the envelope to the difference curves Δ_qq. The envelope on the original quantile scale is then obtained by adding the identity line: L_qq,k = q_theo(k) – e_crit, U_qq,k = q_theo(k) + e_crit (under the assumption that the envelope is symmetric; if not, use the rank‑envelope bounds for the difference curves directly).
+
+────────────────────────────────────────────
+IV. Hypothesis Testing and p‑values
+────────────────────────────────────────────
+The global p‑value for each test is defined as:
+   p = 1 / (B + 1) · (rank of e_obs among all e_i),
+where the rank is in descending order (i.e., the number of simulated curves at least as extreme as the observed one, plus one, divided by B+1). This p‑value is directly linked to the envelope: if p < α, the observed curve lies outside the (1 – α) envelope, and the corresponding assumption is rejected.
+
+We apply this procedure to the three functional statistics, obtaining p‑values p_RVF, p_QQ, p_SL.
+
+────────────────────────────────────────────
+V. Integrated Reporting
+────────────────────────────────────────────
+The final diagnostic report (report.md) includes:
+- Fitted coefficients, R²_train, overall F‑statistic and its p‑value.
+- Three diagnostic plots, each showing:
+   • The observed functional curve (solid line).
+   • The pointwise median curve (if informative).
+   • The 95% global envelope as a grey shaded band.
+   • Any points where the observed curve exits the envelope highlighted in red.
+- A summary table with p_RVF, p_QQ, p_SL.
+- An explicit conclusion: the linear model is considered adequate if p_RVF ≥ 0.05, p_QQ ≥ 0.05, and p_SL ≥ 0.05 (no assumption rejected), the overall F‑test is significant, and R² > 0.7.
+- Test set evaluation: R²_test, RMSE to confirm predictive consistency.
+
+────────────────────────────────────────────
+Algorithmic Pseudocode
+────────────────────────────────────────────
+
+Algorithm: GlobalRankEnvelopeDiagnostics
+Input: Data 𝒟, α, B, m (grid points)
+Output: Model fit, envelope test p‑values, plots
+
+ 1. (X_train, y_train, X_test, y_test) ← RandomSplit(𝒟, test_frac=0.2)
+ 2. model ← OLS(X_train, y_train)
+ 3. Obtain β̂, σ̂, residuals, standardized residuals, fitted values ŷ
+ 4. Define grid f ← linspace(min(ŷ), max(ŷ), m)
+ 5. 
+ 6. /* Compute observed functional statistics */
+ 7. T_RVF_obs ← LOESS_smooth(ŷ, residuals, grid=f, span=0.5)
+ 8. d_ordered ← sort(standardized_residuals)
+ 9. q_theoretical ← normal_quantile(((1:m)-0.5)/m)
+10. Δ_QQ_obs ← d_ordered – q_theoretical   (interpolate if needed)
+11. T_SL_obs ← LOESS_smooth(ŷ, sqrt(|standardized_residuals|), grid=f, span=0.5)
+12.
+13. /* Simulation loop */
+14. For each statistic, initialize T_sim as B×m matrix
+15. For b = 1 to B:
+16.     y_sim ← sample from N(X_train β̂, σ̂² I)
+17.     model_sim ← OLS(X_train, y_sim)
+18.     Compute residuals_sim, std_res_sim, fitted_sim
+19.     T_RVF_sim[b,] ← LOESS_smooth(fitted_sim, residuals_sim, grid=f, span=0.5)
+20.     d_ordered_sim ← sort(std_res_sim)
+21.     Δ_QQ_sim[b,] ← d_ordered_sim – q_theoretical
+22.     T_SL_sim[b,] ← LOESS_smooth(fitted_sim, sqrt(|std_res_sim|), grid=f, span=0.5)
+23. EndFor
+24.
+25. /* Envelope and p‑value for each plot */
+26. For each statistic (T_RVF, Δ_QQ, T_SL):
+27.     M ← pointwise_median(curves = T_sim)
+28.     For i in 1..B: e_i ← max(|T_sim[i,] – M|)
+29.     e_obs ← max(|T_obs – M|)
+30.     r_crit ← ceil((1 – α)*(B+1))
+31.     e_crit ← sort(e_i)[r_crit]   (ascending order)
+32.     L ← M – e_crit;  U ← M + e_crit
+33.     p_val ← (1 + sum(e_i >= e_obs)) / (B+1)
+34.     Store (f, T_obs, L, U, p_val)
+35. EndFor
+36.
+37. /* For Q-Q, transform envelope back to original scale */
+38. L_QQ ← q_theoretical + (L – M)   (where L,M correspond to Δ_QQ)
+39. U_QQ ← q_theoretical + (U – M)
+40.
+41. Plot each test; highlight rejections.
+42. Compute R²_test, RMSE on test set.
+43. Return model summary, p‑values, diagnostic figures.
+
+The complexity remains O(B n p²) and is easily run on standard hardware. All parameter choices (span, grid size, B) are explicitly fixed, ensuring full reproducibility.
+## Run 0: Baseline

@@ -1,0 +1,27 @@
+{
+  "results": [
+    {
+      "idea_name": "ReproLR",
+      "run_num": 0,
+      "timestamp": 1782197747.3925374,
+      "scores": {},
+      "report_preview": "# ReproLR: Reproducible Linear Regression Pipeline\n\n## Experiment Summary\n\nThis report documents the results of the ReproLR pipeline applied to a synthetic\ndataset of 1000 samples with 5 features.  The pipeline implements ordinary least\nsquares regression with feature standardisation, response centering, and pivoted\nQR decomposition for numerical stability.\n\n## Dataset\n\n- **Samples:** 1000\n- **Features:** 5 (x₁, x₂, x₃, x₄, x₅)\n- **Target:** y (continuous)\n- **Train / Test split:** 80 % / 20 %\n\n## Model Performance (Test Set)\n\n| Metric | Value |\n|--------|-------|\n| MSE    | 0.010670 |\n| RMSE   | 0.103296 |\n| R²     | 0.991174 |\n\nThe R² value indicates that the linear model explains **99.1 %** of\nthe variance in the test set, confirming a strong linear relationship between\nthe features and the target.\n\n## Learned Coefficients\n\n| Variable   | Coefficient |\n|------------|------------|\n| x₁         | 0.573094 |\n| x₂         | 0.861125 |\n| x₃         | 0.293627 |\n| x₄         | 0.143176 |\n| x₅         | 0.291745 |\n| Intercept  | 3.721483 |\n\nThe intercept and slope coefficients were recovered by first centering the\ntraining response, solving the standardised OLS problem via pivoted QR, and\nthen back-transforming to the original feature scale.\n\n## Visualizations\n\n### Actual vs. Predicted Scatter Plot\n\n![Actual vs. Predicted](images/actual_vs_predicted.png)\n\nThe scatter plot shows predicted values plotted against true values on the test\nset.  Points lying close to the diagonal red dashed line indicate accurate\npredictions.\n\n### Residual Histogram\n\n![Residual Histogram](images/residual_histogram.png)\n\nThe histogram of residuals (y_true – y_pred) shows the distribution of\nprediction errors.  A normal-density curve is overlaid for comparison.\n\n## Conclusion\n\nReproLR successfully reproduces a stable OLS fit on the synthetic dataset.\nAll four stages — data ingestion, preprocessing, model fitting, and\nevaluation — were executed as specified, and the results are fully determined\nby the algorithm, ensuring reproducibility across environments.\n",
+      "report_images": [
+        "results/Test_001/20260623_064038_launch/session_1782196838/20260623_065345_ReproLR/report/images/actual_vs_predicted.png",
+        "results/Test_001/20260623_064038_launch/session_1782196838/20260623_065345_ReproLR/report/images/residual_histogram.png"
+      ]
+    }
+  ],
+  "status": "approved",
+  "current": {
+    "idea_name": "ReproLR",
+    "run_num": 0,
+    "timestamp": 1782197747.3925374,
+    "scores": {},
+    "report_preview": "# ReproLR: Reproducible Linear Regression Pipeline\n\n## Experiment Summary\n\nThis report documents the results of the ReproLR pipeline applied to a synthetic\ndataset of 1000 samples with 5 features.  The pipeline implements ordinary least\nsquares regression with feature standardisation, response centering, and pivoted\nQR decomposition for numerical stability.\n\n## Dataset\n\n- **Samples:** 1000\n- **Features:** 5 (x₁, x₂, x₃, x₄, x₅)\n- **Target:** y (continuous)\n- **Train / Test split:** 80 % / 20 %\n\n## Model Performance (Test Set)\n\n| Metric | Value |\n|--------|-------|\n| MSE    | 0.010670 |\n| RMSE   | 0.103296 |\n| R²     | 0.991174 |\n\nThe R² value indicates that the linear model explains **99.1 %** of\nthe variance in the test set, confirming a strong linear relationship between\nthe features and the target.\n\n## Learned Coefficients\n\n| Variable   | Coefficient |\n|------------|------------|\n| x₁         | 0.573094 |\n| x₂         | 0.861125 |\n| x₃         | 0.293627 |\n| x₄         | 0.143176 |\n| x₅         | 0.291745 |\n| Intercept  | 3.721483 |\n\nThe intercept and slope coefficients were recovered by first centering the\ntraining response, solving the standardised OLS problem via pivoted QR, and\nthen back-transforming to the original feature scale.\n\n## Visualizations\n\n### Actual vs. Predicted Scatter Plot\n\n![Actual vs. Predicted](images/actual_vs_predicted.png)\n\nThe scatter plot shows predicted values plotted against true values on the test\nset.  Points lying close to the diagonal red dashed line indicate accurate\npredictions.\n\n### Residual Histogram\n\n![Residual Histogram](images/residual_histogram.png)\n\nThe histogram of residuals (y_true – y_pred) shows the distribution of\nprediction errors.  A normal-density curve is overlaid for comparison.\n\n## Conclusion\n\nReproLR successfully reproduces a stable OLS fit on the synthetic dataset.\nAll four stages — data ingestion, preprocessing, model fitting, and\nevaluation — were executed as specified, and the results are fully determined\nby the algorithm, ensuring reproducibility across environments.\n",
+    "report_images": [
+      "results/Test_001/20260623_064038_launch/session_1782196838/20260623_065345_ReproLR/report/images/actual_vs_predicted.png",
+      "results/Test_001/20260623_064038_launch/session_1782196838/20260623_065345_ReproLR/report/images/residual_histogram.png"
+    ]
+  }
+}

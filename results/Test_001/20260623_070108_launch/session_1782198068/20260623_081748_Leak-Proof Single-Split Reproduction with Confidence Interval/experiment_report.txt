@@ -1,0 +1,103 @@
+================================================================================
+                    EXPERIMENT REPORT
+================================================================================
+
+Project: Leak-Proof Single-Split Reproduction with Confidence Interval
+Experiment Objective: Reproduce the predictive performance of a linear
+  regression model using a single 80/20 train-test split with leak-proof
+  standardization and a 95% t-confidence interval for the test MSE.
+Total Runs Attempted: 3 (run_0, run_1, run_2)
+
+================================================================================
+Run 0 (Baseline)
+================================================================================
+
+What was implemented/modified:
+- Minimal baseline setup. No code/experiment.py was generated; the run serves
+  as a structural placeholder.
+
+Results:
+- final_info.json: total_score = 0 (no experiment was actually executed).
+
+================================================================================
+Run 1 (Initial Implementation)
+================================================================================
+
+What was implemented/modified:
+- Implemented the full Leak-Proof Single-Split protocol from scratch.
+- Key steps implemented:
+  1. Data loading (1000 samples, 5 features x1-x5, target y)
+  2. Deterministic 80/20 train-test split (random seed = 42)
+  3. Leak-proof Z-score standardization (mean & std computed on training set
+     only, then applied to both train and test sets)
+  4. OLS linear regression training via sklearn LinearRegression
+  5. Test-set evaluation (MSE, RMSE, R², MAE)
+  6. 95% t-confidence interval for the true expected MSE (t_crit ≈ 1.972,
+     df = 199)
+  7. 5 visualization figures generated (predicted vs actual, residual analysis,
+     squared errors with CI, model coefficients, predictions vs actuals
+     scatter)
+
+Results:
+- Execution: Successful (return code 0)
+- Test MSE:           0.010758
+- Test RMSE:          0.103722
+- Test R²:            0.992032
+- Test MAE:           0.082197
+- 95% CI for MSE:    [0.008609, 0.012907]
+  - CI half-width:    ±0.002149 (±20.0% of point estimate)
+  - t_critical:       1.9720 (df = 199)
+- LLM Judge Score:    0.0/100 — due to scoring API parsing failure
+  ("Failed to parse scoring response"), not a code error.
+
+================================================================================
+Run 2 (Improved Implementation)
+================================================================================
+
+What was implemented/modified:
+- Built upon run_1's implementation with the following enhancements:
+  - Added `if __name__ == "__main__"` guard for code structure compliance
+  - Added residual normality tests: Shapiro-Wilk test and D'Agostino-Pearson
+    omnibus test
+  - Added skewness and kurtosis calculations for comprehensive residual
+    diagnostics
+  - Added max absolute error (`max_error`) metric
+  - Improved visualization annotations: coefficient values on bar chart,
+    R²/MSE text box on predicted-vs-actual scatter, Q-Q plot for residuals
+  - Enhanced report with diagnostic tables and thorough statistical validity
+    discussion
+  - More detailed console output with all diagnostic information
+
+Results:
+- Execution: Successful (return code 0)
+- Test MSE:           0.010758  (identical to run_1 — same random seed 42)
+- Test RMSE:          0.103722
+- Test R²:            0.992032
+- Test MAE:           0.082197
+- Max |error|:        0.354893
+- Residual std:       0.103578
+- 95% CI for MSE:    [0.008609, 0.012907]
+- Residual diagnostics:
+  - Residual mean:         -0.009139 (near zero, as expected)
+  - Shapiro-Wilk:          W=0.9946, p=0.6883  → normality not rejected
+  - D'Agostino-Pearson:    χ²=1.9836, p=0.3709 → normality not rejected
+  - Skewness:              0.2169
+  - Kurtosis:              0.1196
+  - Conclusion: Residuals appear normally distributed (p > 0.05)
+- Reproduction check: Paper MSE not available, so reproduction criterion was
+  skipped.
+- LLM Judge Score:    0.0/100 — scoring API parsing failure persisted.
+
+================================================================================
+Summary
+================================================================================
+
+- Runs 1 and 2 both executed the core experiment successfully, achieving
+  identical quantitative results (R² = 0.9920, MSE = 0.0108, 95% CI =
+  [0.0086, 0.0129]) as expected from the deterministic random seed.
+- Run 2 added comprehensive residual diagnostics and improved code structure,
+  report quality, and visualization annotations.
+- The LLM judge scoring (0.0/100) was affected by an API parsing issue in
+  both runs and does not reflect the actual experimental quality.
+- No paper MSE value was available for the reproduction success/failure check.
+================================================================================

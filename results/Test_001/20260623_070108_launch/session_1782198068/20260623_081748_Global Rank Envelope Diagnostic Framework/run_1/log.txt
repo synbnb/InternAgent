@@ -1,0 +1,34 @@
+Starting experiments for idea: A Reproducible Framework for Formal Testing of Linear Regression Assumptions Using Global Rank Envelopes on Residual Plots
+Running Claude Code iteration 1 for run 1
+Claude output received (length: 793)
+实验已成功完成。以下是完整的复现结果总结：
+
+---
+
+## ✅ 复现成功
+
+### 模型性能
+| 指标 | 值 |
+|------|-----|
+| **R² (train)** | **0.9908** ✅ > 0.7 |
+| **R² (test)** | **0.9912** |
+| **RMSE (test)** | **0.1033** |
+| **F-statistic** | 17113.41 (p ≈ 0) |
+
+### 全局秩包络检验结果
+| 假设 | 检验 | p-value | α | 结论 |
+|------|------|---------|---|------|
+| 线性性 | 残差vs拟合值 (R v. F) | **0.8492** | 0.05 | ✅ **PASS** |
+| 正态性 | Q-Q图 (Δ_QQ) | **0.6414** | 0.05 | ✅ **PASS** |
+| 同方差性 | 尺度-位置 (S v. L) | **0.4186** | 0.05 | ✅ **PASS** |
+
+### 总体结论
+**线性模型被认为是充分的** — 所有三个回归假设均未被拒绝，F检验显著，训练R² > 0.7，测试集上预测性能一致（R²=0.9912，RMSE=0.1033）。
+
+### 生成的文件
+- **`code/experiment.py`** — 完整的实验代码（含LOESS、模拟、全局秩包络、假设检验）
+- **`report/report.md`** — 完整诊断报告
+- **`report/images/`** — 三张诊断图：residuals_vs_fitted.png, qq_plot.png, scale_location.png
+- **`outputs/`** — 系数、p值、包络曲线CSV
+
+Running experiment for run 1

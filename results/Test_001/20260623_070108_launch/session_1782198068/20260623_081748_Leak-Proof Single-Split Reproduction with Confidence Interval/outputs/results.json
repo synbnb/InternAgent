@@ -1,0 +1,76 @@
+{
+  "n_samples": 1000,
+  "n_features": 5,
+  "n_train": 800,
+  "n_test": 200,
+  "random_seed": 42,
+  "train_fraction": 0.8,
+  "model_type": "LinearRegression (OLS, fit_intercept=True)",
+  "standardization": {
+    "mu": [
+      0.4949071249999998,
+      0.4899237500000004,
+      0.4959647500000002,
+      0.5166873750000004,
+      0.5060590000000004
+    ],
+    "sigma": [
+      0.2884023198939649,
+      0.28603067949332733,
+      0.29387320536005046,
+      0.27736922472958925,
+      0.28739053713661217
+    ],
+    "epsilon": 1e-08,
+    "fitted_on": "train_only"
+  },
+  "coefficients": {
+    "intercept": 3.7210898750000014,
+    "coef": [
+      0.5811580268294753,
+      0.8639665725921796,
+      0.2948267948090199,
+      0.13918709775261837,
+      0.28587082250627527
+    ],
+    "feature_names": [
+      "x1",
+      "x2",
+      "x3",
+      "x4",
+      "x5"
+    ]
+  },
+  "metrics": {
+    "mse": 0.010758235170580081,
+    "rmse": 0.10372191268280816,
+    "r2": 0.9920322846420853,
+    "mae": 0.08219694496594415,
+    "max_error": 0.35489336143329187,
+    "residual_std": 0.10357779312600968
+  },
+  "confidence_interval_95": {
+    "lower": 0.008609175531415308,
+    "upper": 0.012907294809744854,
+    "half_width": 0.002149059639164773,
+    "t_critical": 1.9719565442517533,
+    "degrees_of_freedom": 199,
+    "std_squared_errors": 0.015412252855747734,
+    "method": "t-distribution on test squared errors"
+  },
+  "residual_diagnostics": {
+    "mean": -0.009138803962767467,
+    "std": 0.10357779312600968,
+    "skewness": 0.21689539536441044,
+    "kurtosis": 0.11960585529854262,
+    "shapiro_wilk": {
+      "statistic": 0.9945852975673446,
+      "p_value": 0.6883244420967373
+    },
+    "dagostino_pearson": {
+      "statistic": 1.9836302451491454,
+      "p_value": 0.37090284552308317
+    },
+    "is_normal": true
+  }
+}

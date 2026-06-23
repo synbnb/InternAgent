@@ -1,0 +1,35 @@
+Starting experiments for idea: A Leak-Proof Evaluation Protocol for Reproducing Linear Regression Performance Using a Single Train-Test Split and Confidence Intervals
+Running Claude Code iteration 1 for run 1
+Claude output received (length: 705)
+所有任务已完成。以下是实验摘要：
+
+---
+
+## 复现实验完成 ✅
+
+### 结果总结
+
+| 指标 | 值 |
+|---|---|
+| **测试 MSE** | **0.010758** |
+| 测试 RMSE | 0.103722 |
+| 测试 R² | **0.9920** |
+| 测试 MAE | 0.082197 |
+| **95% CI for MSE** | **[0.008609, 0.012907]** |
+
+### 关键实现细节
+
+1. **防泄漏预处理** — 标准化参数（均值、标准差）仅从训练集（800样本）计算，测试集完全隔离
+2. **OLS模型** — `LinearRegression(fit_intercept=True)`，R²=0.992，拟合优度极高
+3. **95%置信区间** — 使用t分布（df=199，t_crit=1.972），区间宽度为±0.002149
+4. **5张可视化图表** — 预测vs实际散点图、残差分析图、平方误差+CI图、模型系数图、预测对比图
+
+### 输出文件
+
+- `code/experiment.py` — 完整复现代码（含详细中文/英文注释）
+- `report/report.md` — 完整的实验报告（定量结果 + 图表引用）
+- `report/images/` — 5张生成图表
+- `outputs/results.json` — 所有数值结果
+- `outputs/model_coefficients.csv` / `outputs/standardization_params.csv` — 中间数据
+
+Running experiment for run 1

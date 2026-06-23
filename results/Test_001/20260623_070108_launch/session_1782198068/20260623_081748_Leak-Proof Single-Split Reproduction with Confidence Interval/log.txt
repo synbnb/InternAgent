@@ -1,0 +1,202 @@
+Starting experiments for idea: A Leak-Proof Evaluation Protocol for Reproducing Linear Regression Performance Using a Single Train-Test Split and Confidence Intervals
+Running Claude Code iteration 1 for run 1
+Claude output received (length: 705)
+所有任务已完成。以下是实验摘要：
+
+---
+
+## 复现实验完成 ✅
+
+### 结果总结
+
+| 指标 | 值 |
+|---|---|
+| **测试 MSE** | **0.010758** |
+| 测试 RMSE | 0.103722 |
+| 测试 R² | **0.9920** |
+| 测试 MAE | 0.082197 |
+| **95% CI for MSE** | **[0.008609, 0.012907]** |
+
+### 关键实现细节
+
+1. **防泄漏预处理** — 标准化参数（均值、标准差）仅从训练集（800样本）计算，测试集完全隔离
+2. **OLS模型** — `LinearRegression(fit_intercept=True)`，R²=0.992，拟合优度极高
+3. **95%置信区间** — 使用t分布（df=199，t_crit=1.972），区间宽度为±0.002149
+4. **5张可视化图表** — 预测vs实际散点图、残差分析图、平方误差+CI图、模型系数图、预测对比图
+
+### 输出文件
+
+- `code/experiment.py` — 完整复现代码（含详细中文/英文注释）
+- `report/report.md` — 完整的实验报告（定量结果 + 图表引用）
+- `report/images/` — 5张生成图表
+- `outputs/results.json` — 所有数值结果
+- `outputs/model_coefficients.csv` / `outputs/standardization_params.csv` — 中间数据
+
+Running experiment for run 1
+
+================================================================================
+Running experiment: run_1
+================================================================================
+
+Data loaded: 1000 samples, 5 features
+Train set: 800 samples
+Test set:  200 samples
+Standardization parameters saved.
+Model coefficients saved.
+Test MSE:  0.010758
+Test RMSE: 0.103722
+Test R²:   0.992032
+Test MAE:  0.082197
+
+95% CI for true MSE: [0.008609, 0.012907]
+t-critical (199 df): 1.9720
+Std of squared errors (s_e): 0.015412
+Results saved to outputs/results.json
+Figure saved: predicted_vs_actual.png
+Figure saved: residual_analysis.png
+Figure saved: squared_errors_ci.png
+Figure saved: model_coefficients.png
+Figure saved: predictions_vs_actuals_scatter.png
+
+============================================================
+EXPERIMENT COMPLETE
+============================================================
+  Test MSE:        0.010758
+  Test RMSE:       0.103722
+  Test R²:         0.992032
+  Test MAE:        0.082197
+  95% CI for MSE:  [0.008609, 0.012907]
+  CI half-width:   0.002149
+  Figures saved:   /home/devuser/workspace/reproduction_agent/InternAgent/results/Test_001/20260623_070108_launch/session_1782198068/20260623_081748_Leak-Proof Single-Split Reproduction with Confidence Interval/run_1/report/images
+============================================================
+
+================================================================================
+Experiment run_1 completed with return code: 0
+================================================================================
+
+Scoring sci_task run 1 with LLM judge (model=deepseek-v4-pro)...
+Sci task score for run 1: 0.0/100
+Running Claude Code iteration 1 for run 2
+Claude output received (length: 804)
+## 改进总结
+
+### 问题分析
+Run 1 评分结果所有项目为 0，提示 "Failed to parse scoring response" — 这看起来是评分 API 的解析问题，而非代码本身的错误。代码实际成功运行并产生了合理的 R²=0.992。
+
+### 对代码 (`code/experiment.py`) 的改进
+| 改进项 | 说明 |
+|--------|------|
+| `if __name__ == "__main__"` 守卫 | 代码结构规范性 |
+| 残差正态性检验 | 新增 Shapiro-Wilk 和 D'Agostino-Pearson 检验 |
+| 偏度和峰度计算 | 提供更全面的残差诊断 |
+| 最大绝对误差 | 新增 `max_error` 指标 |
+| 系数标签标注 | 柱状图上显示数值 |
+| R²/MSE 注释 | 预测vs实际图上添加文本框 |
+| 详细输出 | 更多诊断打印信息 |
+
+### 对报告 (`report/report.md`) 的改进
+| 改进项 | 说明 |
+|--------|------|
+| 残差诊断表 | 包含 Shapiro-Wilk p=0.688，确认正态性 |
+| 置信区间详细表 | t_crit, half-width, 相对宽度 |
+| 指标补充 | 最大绝对误差、残差标准差 |
+| 图表编号 | 所有图表有序号引用 |
+| 讨论强化 | 更完整的统计有效性论证 |
+
+### 当前关键指标
+- **R² = 0.992** — 线性模型解释了 99.2% 的目标方差
+- **MSE = 0.0108**, 95% CI = [0.0086, 0.0129]
+- **残差正态性验证通过** (p=0.688)
+
+已准备好进入 Run 2。代码可通过 `bash launcher.sh` 执行。
+
+Running experiment for run 2
+
+================================================================================
+Running experiment: run_2
+================================================================================
+
+Data loaded: 1000 samples, 5 features
+Feature range: [0.0002, 0.9999]
+Target range:  [0.8497, 6.7268]
+Target mean ± std: 3.7117 ± 1.1057
+
+Train set: 800 samples
+Test set:  200 samples
+  y_train: mean=3.7211, std=1.0909
+  y_test:  mean=3.6743, std=1.1649
+
+Standardization parameters (fitted on train set):
+  x1: μ=0.4949, σ=0.2884
+  x2: μ=0.4899, σ=0.2860
+  x3: μ=0.4960, σ=0.2939
+  x4: μ=0.5167, σ=0.2774
+  x5: μ=0.5061, σ=0.2874
+
+Trained model coefficients:
+  intercept: 3.721090
+  x1: 0.581158
+  x2: 0.863967
+  x3: 0.294827
+  x4: 0.139187
+  x5: 0.285871
+
+============================================================
+TEST SET PERFORMANCE
+============================================================
+  MSE:           0.010758
+  RMSE:          0.103722
+  R²:            0.992032
+  MAE:           0.082197
+  Max |error|:   0.354893
+  Residual std:  0.103578
+
+============================================================
+CONFIDENCE INTERVAL FOR TRUE MSE
+============================================================
+  Sample MSE (ē):        0.010758
+  Std of squared errors: 0.015412
+  t-critical (df=199):  1.9720
+  CI half-width:         0.002149
+  95% CI:               [0.008609, 0.012907]
+  CI relative width:     ±20.0% of point estimate
+
+============================================================
+RESIDUAL DIAGNOSTICS
+============================================================
+  Residual mean:         -0.009139 (should be ~0)
+  Residual std:          0.103578
+  Residual skewness:     0.2169
+  Residual kurtosis:     0.1196
+  Shapiro-Wilk:          W=0.9946, p=0.688324
+  D'Agostino-Pearson:    χ²=1.9836, p=0.370903
+  → Residuals appear normal (p>0.05)
+
+Reproduction check: paper MSE not available (skipped)
+Results saved to outputs/results.json
+Figure saved: predicted_vs_actual.png
+Figure saved: residual_analysis.png
+Figure saved: squared_errors_ci.png
+Figure saved: model_coefficients.png
+Figure saved: predictions_vs_actuals_scatter.png
+
+============================================================
+EXPERIMENT COMPLETE — SUMMARY
+============================================================
+  Samples:              1000 total → 800 train + 200 test
+  Features:             5
+  Model:                OLS Linear Regression
+  Test MSE:             0.010758
+  Test R²:              0.992032
+  95% CI for MSE:      [0.008609, 0.012907]
+  Residual normality:   YES (p=0.6883)
+  Figures saved:        5 files in /home/devuser/workspace/reproduction_agent/InternAgent/results/Test_001/20260623_070108_launch/session_1782198068/20260623_081748_Leak-Proof Single-Split Reproduction with Confidence Interval/run_2/report/images
+  Output files:          /home/devuser/workspace/reproduction_agent/InternAgent/results/Test_001/20260623_070108_launch/session_1782198068/20260623_081748_Leak-Proof Single-Split Reproduction with Confidence Interval/run_2/outputs/
+============================================================
+
+================================================================================
+Experiment run_2 completed with return code: 0
+================================================================================
+
+Scoring sci_task run 2 with LLM judge (model=deepseek-v4-pro)...
+Sci task score for run 2: 0.0/100

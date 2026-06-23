@@ -3558,7 +3558,12 @@ document.getElementById('startPipelineBtn').addEventListener('click', async () =
 
  badge.style.background = '#ffebee';
 
+		 // 恢复设置界面
+		 document.getElementById('pipelineMonitor').style.display = 'none';
+		 document.getElementById('pipelineSetup').style.display = 'block';
  }
+		 document.getElementById('startPipelineBtn').disabled = false;
+		 document.getElementById('startPipelineBtn').textContent = ' 启动流水线';
 
  } catch (error) {
 
@@ -3642,6 +3647,10 @@ document.getElementById('startPipelineBtn').addEventListener('click', async () =
 
  appendPipelineLog(' 流水线执行完成！');
 
+		 document.getElementById('pipelineMonitor').style.display = 'none';
+		 document.getElementById('pipelineSetup').style.display = 'block';
+		 document.getElementById('startPipelineBtn').disabled = false;
+		 document.getElementById('startPipelineBtn').textContent = ' 启动流水线';
 
 
  // 显示重新启动按钮
@@ -3661,6 +3670,10 @@ document.getElementById('startPipelineBtn').addEventListener('click', async () =
  badge.style.background = '#ffebee';
 
  appendPipelineLog(' 流水线执行出错，请检查日志');
+		 document.getElementById('pipelineMonitor').style.display = 'none';
+		 document.getElementById('pipelineSetup').style.display = 'block';
+		 document.getElementById('startPipelineBtn').disabled = false;
+		 document.getElementById('startPipelineBtn').textContent = ' 启动流水线';
 
 
 
@@ -5030,26 +5043,6 @@ function saveIdeaEdit(index) {
 
 	 // 自动加载结果目录下拉列表
 	 populateFileBrowserSelect();
-
-	 // 页面加载时检测是否有正在运行的流水线
-	 fetch('/pipeline_history')
-	 .then(function(r) { return r.json(); })
-	 .then(function(data) {
-		 if (data.success && data.records) {
-			 var active = data.records.filter(function(r) { return r.status === 'running'; });
-			 if (active.length > 0) {
-				 var latest = active[0];
-				 pipelineUUID = latest.uuid;
-				 document.getElementById('pipelineSetup').style.display = 'none';
-				 document.getElementById('pipelineMonitor').style.display = 'block';
-				 document.getElementById('stopPipelineBtn').style.display = 'inline-block';
-				 document.getElementById('pausePipelineBtn').style.display = 'inline-block';
-				 appendPipelineLog('🔄 已重新连接到运行中的流水线 (' + latest.start_time + ')');
-				 startPipelinePolling();
-			 }
-		 }
-	 })
-	 .catch(function(e) { console.error('恢复流水线失败:', e); });
 
 </script>
 

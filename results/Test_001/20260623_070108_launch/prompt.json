@@ -1,0 +1,12 @@
+{
+  "system": "You are a scientific researcher reproducing findings from a Test paper.",
+  "task_description": "Reproduce the findings from a scientific paper in the Test domain.\n\n## Research Task\n\u590d\u73b0\u4e00\u7bc7\u7b80\u5355\u7684\u673a\u5668\u5b66\u4e60\u8bba\u6587\uff0c\u4f7f\u7528\u7ebf\u6027\u56de\u5f52\u5bf9\u5408\u6210\u6570\u636e\u8fdb\u884c\u9884\u6d4b\u5206\u6790\u3002\n\n## Available Data\n- synthetic_data.csv: \u5408\u6210\u6570\u636e\u96c6\uff0c\u5305\u542b1000\u4e2a\u6837\u672c\uff0c5\u4e2a\u7279\u5f81\uff0c\u7528\u4e8e\u56de\u5f52\u5206\u6790\u3002\n\n## Evaluation Criteria (3 checklist items)\nItem 0 (type=text, weight=0.40): \u6b63\u786e\u5b9e\u73b0\u7ebf\u6027\u56de\u5f52\u6a21\u578b\u5e76\u5b8c\u6210\u8bad\u7ec3\uff0c\u5728\u6d4b\u8bd5\u96c6\u4e0a\u8fbe\u5230\u5408\u7406\u7684\u9884\u6d4b\u6027\u80fd\u3002\nItem 1 (type=text, weight=0.30): \u751f\u6210\u5b8c\u6574\u7684\u5b9e\u9a8c\u62a5\u544a(report.md)\uff0c\u5305\u542b\u6a21\u578b\u6027\u80fd\u6307\u6807\u548c\u53ef\u89c6\u5316\u7ed3\u679c\u3002\nItem 2 (type=text, weight=0.30): \u4ee3\u7801\u7ed3\u6784\u6e05\u6670\uff0c\u5305\u542b\u5fc5\u8981\u7684\u6ce8\u91ca\u548c\u6570\u636e\u9884\u5904\u7406\u6b65\u9aa4\u3002\n\n## Workspace Layout\n- Write analysis code in `code/`\n- Save intermediate outputs in `outputs/`\n- Write final report as `report/report.md`\n- Save generated figures in `report/images/`\n- Reference papers are in `related_work/`, raw data in `data/`\n",
+  "domain": "Test",
+  "background": "Data files available:\n- synthetic_data.csv: \u5408\u6210\u6570\u636e\u96c6\uff0c\u5305\u542b1000\u4e2a\u6837\u672c\uff0c5\u4e2a\u7279\u5f81\uff0c\u7528\u4e8e\u56de\u5f52\u5206\u6790\u3002",
+  "constraints": [
+    "Item 0 (type=text, weight=0.40): \u6b63\u786e\u5b9e\u73b0\u7ebf\u6027\u56de\u5f52\u6a21\u578b\u5e76\u5b8c\u6210\u8bad\u7ec3\uff0c\u5728\u6d4b\u8bd5\u96c6\u4e0a\u8fbe\u5230\u5408\u7406\u7684\u9884\u6d4b\u6027\u80fd\u3002",
+    "Item 1 (type=text, weight=0.30): \u751f\u6210\u5b8c\u6574\u7684\u5b9e\u9a8c\u62a5\u544a(report.md)\uff0c\u5305\u542b\u6a21\u578b\u6027\u80fd\u6307\u6807\u548c\u53ef\u89c6\u5316\u7ed3\u679c\u3002",
+    "Item 2 (type=text, weight=0.30): \u4ee3\u7801\u7ed3\u6784\u6e05\u6670\uff0c\u5305\u542b\u5fc5\u8981\u7684\u6ce8\u91ca\u548c\u6570\u636e\u9884\u5904\u7406\u6b65\u9aa4\u3002"
+  ],
+  "task_type": "sci"
+}

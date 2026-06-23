@@ -7,6 +7,9 @@ import os
 os.environ['HF_HUB_OFFLINE'] = '1'
 os.environ['TRANSFORMERS_OFFLINE'] = '1'
 import sys, json, math, warnings, gc, traceback
+# Unbuffered output for real-time log visibility
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 from pathlib import Path
 import numpy as np
 from tqdm import tqdm
@@ -457,7 +460,8 @@ def extract_embeddings_prott5(model, tokenizer, proteins, device, cache_name="")
     return embs
 
 def train_probe(X, y, C):
-    clf = LogisticRegression(solver='saga', C=C, max_iter=500, random_state=RANDOM_SEED, n_jobs=-1, tol=1e-4)
+    clf = LogisticRegression(solver='lbfgs', C=C, max_iter=1000,
+                              random_state=RANDOM_SEED, n_jobs=-1, tol=1e-4)
     clf.fit(X, y)
     return clf
 
@@ -795,13 +799,13 @@ All architectures learn **transferable features** purely from unlabeled sequence
 # ============================================================
 
 def main():
-    print("=" * 70)
-    print("Zero-Shot Disorder Prediction via PLM Entropy Ensemble")
-    print("Reproducing ProtTrans (Elnaggar et al., 2021)")
-    print("=" * 70)
+    print("=" * 70, flush=True)
+    print("Zero-Shot Disorder Prediction via PLM Entropy Ensemble", flush=True)
+    print("Reproducing ProtTrans (Elnaggar et al., 2021)", flush=True)
+    print("=" * 70, flush=True)
     gpu_name = torch.cuda.get_device_properties(0).name if torch.cuda.is_available() else 'CPU'
-    print(f"Device: {DEVICE} ({gpu_name}), {N_GPU} GPUs")
-    print()
+    print(f"Device: {DEVICE} ({gpu_name}), {N_GPU} GPUs", flush=True)
+    print(flush=True)
     
     # --- Step 1: Architecture Overview (Checklist Item 0) ---
     print("-" * 50)
@@ -867,9 +871,9 @@ def main():
     
     # Compute per-model entropies on test sequences
     test_sequences = {
-        'p53_TAD': "MEEPQSDPSVEPPLSQETFSDLWKLLPENNVLSPLPSQAMDDLMLSPDDIEQWFTEDPGPDEAPRMPEAAPPVAPAPAAPTPAAPAPAPSWPLSSSVPSQKTYQGSYGFRLGFLHSGTAKSVTCTYSPALNKMFCQLAKTCPVQLWVDSTPPPGTRVRAMAIYKQSQHMTEVVRRCPHHERCSDSDGLAPPQHLIRVEGNLRVEYLDDRNTFRHSVVVPYEPPEVGSDCTTIHYNYMCNSSCMGGMNRRPILTIITLEDSSGNLLGRNSFEVRVCACPGRDRRTEEENLRKKGEPHHELPPGSTKRALPNNTSSSPQPKKKPLDGEYFTLQIRGRERFEMFRELNEALELKDAQAGKEPGGSRAHSSHLKSKKGQSTSRHKKLMFKTEGPDSD",
+        'p53_TAD': "MEEPQSDPSVEPPLSQETFSDLWKLLPENNVLSPLPSQAMDDLMLSPDDIEQWFTEDPGPDEAPRMPEAAPPVAPAPAAPTPAAPAPAPSWPLSSSVPSQKTYQGSYGFRLGFLHSGTAKSVTCTYSPALNKMFCQLAKTCPVQLWVDSTPPPGTRVRAMAIYKQSQHMTEVVRRCPHHERCSDSDGLAPPQHLIRVEGNLRVEYLDDRNTFRHSVVVPYEPPEVGSDCTTIHYNYMCNSSCMGGMNRRPILTIITLEDSSGNLLGRNSFEVRVCACPGRDRRTEEENLRKKGEPHHELPPGSTKRALPNNTSSSPQPKKKPLDGEYFTLQIRGRERFEMFRELNEALELKDAQAGKEPGGSRAHSSHLKSKKGQSTSRHKKLMFKTEGPDSD"[:256],
         'ubiquitin': "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG",
-        'alpha_synuclein': "MDVFMKGLSKAKEGVVAAAEKTKQGVAEAAGKTKEGVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKDQLGKNEEGAPQEGILEDMPVDPDNEAYEMPSEEGYQDYEPEA",
+        'alpha_synuclein': "MDVFMKGLSKAKEGVVAAAEKTKQGVAEAAGKTKEGVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKDQLGKNEEGAPQEGILEDMPVDPDNEAYEMPSEEGYQDYEPEA"[:128],
         'calmodulin': "MADQLTEEQIAEFKEAFSLFDKDGDGTITTKELGTVMRSLGQNPTEAELQDMINEVDADGNGTIDFPEFLTMMARKMKDTDSEEEIREAFRVFDKDGNGYISAAELRHVMTNLGEKLTDEEVDEMIREADIDGDGQVNYEEFVQMMTA",
     }
     
@@ -954,28 +958,46 @@ def main():
             train_p, casp_p, cb_p = load_ss3_data()
             print(f"  Train: {len(train_p)} proteins, CASP12: {len(casp_p)}, CB513: {len(cb_p)}")
             
-            train_e = extract_embeddings_prott5(t5_model, t5_tok, train_p, t5_dev, "train")
+            # Use a small training subset for speed (ProtTrans paper used ~8700 proteins; we use 300)
+            n_train_use = min(300, len(train_p))
+            sub_idx = np.random.choice(len(train_p), n_train_use, replace=False)
+            train_sub = [train_p[i] for i in sub_idx]
+
+            train_e = extract_embeddings_prott5(t5_model, t5_tok, train_sub, t5_dev, "train_sub")
             casp_e = extract_embeddings_prott5(t5_model, t5_tok, casp_p, t5_dev, "casp12")
             cb_e = extract_embeddings_prott5(t5_model, t5_tok, cb_p, t5_dev, "cb513")
-            
-            sub_idx = np.random.choice(len(train_p), min(300, len(train_p)), replace=False)
-            cv_res = protein_level_cv([train_e[i] for i in sub_idx],
-                                      [train_p[i]['labels'] for i in sub_idx],
-                                      np.logspace(-3, 1, 9))
+
+            # CV with small subset for speed
+            cv_sub_idx = np.random.choice(len(train_e), min(100, len(train_e)), replace=False)
+            cv_res = protein_level_cv([train_e[i] for i in cv_sub_idx],
+                                      [train_sub[i]['labels'] for i in cv_sub_idx],
+                                      np.logspace(-2, 2, 7))
             best_C = cv_res['best_C']
             print(f"  Best C={best_C:.6f}, CV Q3={cv_res['best_score']:.4f}")
-            
-            X_tr = np.vstack(train_e); y_tr = np.concatenate([p['labels'] for p in train_p])
+
+            # For training: subsample residues to ~32 per protein for ~10K total training residues
+            print(f"  Training on {n_train_use} proteins (subsampling residues)...")
+            all_X = []; all_y = []
+            for i in range(len(train_e)):
+                emb_i = train_e[i][:256]
+                label_i = train_sub[i]['labels'][:len(emb_i)]
+                step = max(1, len(emb_i) // 32)
+                emb_i = emb_i[::step][:64]
+                label_i = label_i[::step][:64]
+                all_X.append(emb_i); all_y.append(label_i)
+            X_tr = np.vstack(all_X); y_tr = np.concatenate(all_y)
+            print(f"  Training data: {X_tr.shape[0]:,} residues x {X_tr.shape[1]} dims")
+
             clf = train_probe(X_tr, y_tr, best_C)
-            
+
             def test_fn(embs, labs):
                 X = np.vstack(embs); y = np.concatenate(labs)
                 p = clf.predict(X)
                 return {'q3': float(accuracy_score(y, p)), 'sov': float(compute_sov(p, y))}
-            
+
             ss3_results['casp12'] = test_fn(casp_e, [p['labels'] for p in casp_p])
             print(f"  CASP12: Q3={ss3_results['casp12']['q3']:.4f}, SOV={ss3_results['casp12']['sov']:.4f}")
-            
+
             if len(cb_p) > 0:
                 ss3_results['cb513'] = test_fn(cb_e, [p['labels'] for p in cb_p])
                 print(f"  CB513: Q3={ss3_results['cb513']['q3']:.4f}, SOV={ss3_results['cb513']['sov']:.4f}")
@@ -1009,23 +1031,35 @@ def main():
                         embs.append(h[:L])
                     return embs
                 
-                train_e = extract_bert_emb(train_p[:500], "bert_train")
+                # Use small subset
+                n_use = min(200, len(train_p))
+                sub_idx = np.random.choice(len(train_p), n_use, replace=False)
+                train_sub = [train_p[i] for i in sub_idx]
+                train_e = extract_bert_emb(train_sub, "bert_train")
                 casp_e = extract_bert_emb(casp_p, "bert_casp12")
-                
-                sub_idx = np.random.choice(len(train_e), min(100, len(train_e)), replace=False)
-                cv_res = protein_level_cv([train_e[i] for i in sub_idx],
-                                         [train_p[i]['labels'] for i in sub_idx],
-                                         np.logspace(-3, 1, 9))
+
+                cv_sub_idx = np.random.choice(len(train_e), min(80, len(train_e)), replace=False)
+                cv_res = protein_level_cv([train_e[i] for i in cv_sub_idx],
+                                         [train_sub[i]['labels'] for i in cv_sub_idx],
+                                         np.logspace(-2, 2, 7))
                 best_C = cv_res['best_C']
-                
-                X_tr = np.vstack(train_e); y_tr = np.concatenate([train_p[i]['labels'] for i in range(len(train_e))])
+
+                all_X = []; all_y = []
+                for i in range(len(train_e)):
+                    emb_i = train_e[i][:128]
+                    label_i = train_sub[i]['labels'][:len(emb_i)]
+                    step = max(1, len(emb_i) // 24)
+                    emb_i = emb_i[::step][:48]
+                    label_i = label_i[::step][:48]
+                    all_X.append(emb_i); all_y.append(label_i)
+                X_tr = np.vstack(all_X); y_tr = np.concatenate(all_y)
                 clf = train_probe(X_tr, y_tr, best_C)
-                
+
                 def test_fn(embs, labs):
                     X = np.vstack(embs); y = np.concatenate(labs)
                     p = clf.predict(X)
                     return {'q3': float(accuracy_score(y, p)), 'sov': float(compute_sov(p, y))}
-                
+
                 ss3_results['casp12'] = test_fn(casp_e, [p['labels'] for p in casp_p])
                 print(f"  CASP12 (BERT): Q3={ss3_results['casp12']['q3']:.4f}")
                 plot_ss3_results(cv_res, ss3_results, IMAGE_DIR / "ss3")
